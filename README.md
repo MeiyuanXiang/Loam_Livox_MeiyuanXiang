@@ -1,2 +1,2 @@
-# Loam_Livox_Noted_MeiyuanXiang
-Loam_Livox代码中文注释与相关论文
+# Loam_Livox_MeiyuanXiang
+Loam_Livox相关论文、代码中文注释以及代码改动
