@@ -53,6 +53,7 @@ cv::Mat DistortCoeff = (cv::Mat_<float>(4, 1) << 0.1287, -0.2158, 0, 0);
 ofstream log_file("/home/zjucvg/log7.txt");
 ofstream log_file1("/home/zjucvg/log6.txt");
 ofstream log_file2("/home/zjucvg/log9.txt");
+
 double str2double(std::string str)
 {
     std::stringstream ss;
@@ -73,13 +74,11 @@ std::string double2str(double timestamp)
 
 void log_out_pose(ostream &out, Pose pose, int idx)
 {
-
     out << "pose" << idx << " :" << pose.Qw.x() << "  " << pose.Qw.y() << "  " << pose.Qw.z() << "  " << pose.Qw.w() << "  " << pose.Tw.x() << "  " << pose.Tw.y() << "  " << pose.Tw.z() << endl;
 }
 
 cv::Mat Quaterniond2Mat(Eigen::Quaterniond &q)
 {
-
     cv::Mat res = cv::Mat(3, 3, CV_32FC1);
 
     res.at<float>(0, 0) = 1 - 2 * q.y() * q.y() - 2 * q.z() * q.z();
@@ -112,9 +111,7 @@ void CallbackHandler(const sensor_msgs::PointCloud2ConstPtr &msgs)
     bool first = true;
     for (int i = 0; i < pointcloud_size; i++)
     {
-
         double timestamp = PointCloudIn.points[i].intensity + first_received_time;
-
         for (int j = 0; j < img_list_double_vec.size() - 1; j++)
         {
             if (timestamp < img_list_double_vec[0])

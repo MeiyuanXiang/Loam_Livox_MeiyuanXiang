@@ -23,6 +23,7 @@ int main(int argc, char **argv)
         ROS_ERROR("Open Camera error! exit node");
         return -1;
     }
+    
     cap.set(CV_CAP_PROP_SETTINGS, 1); //opens camera properties dialog
 
     cap.set(CV_CAP_PROP_FRAME_WIDTH, 320);

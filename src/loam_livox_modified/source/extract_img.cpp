@@ -24,6 +24,7 @@ double str2double(std::string str)
     ss << str;
     double timestamp;
     ss >> timestamp;
+
     return timestamp;
 }
 
@@ -33,6 +34,7 @@ string time2str(double timestamp)
     ss << fixed << timestamp;
     string str;
     ss >> str;
+    
     return str;
 }
 

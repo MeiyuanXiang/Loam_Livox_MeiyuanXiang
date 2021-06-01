@@ -34,17 +34,22 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+/*
+  laserMapping主要程序中转，构建场景地图
+*/
+
 #include "laser_mapping.hpp"
 
-int main( int argc, char **argv )
+int main(int argc, char **argv)
 {
-    ros::init( argc, argv, "laserMapping" );
+  ros::init(argc, argv, "laserMapping");
 
-    Laser_mapping laser_mapping;
+  Laser_mapping laser_mapping;
 
-    std::thread mapping_process{ &Laser_mapping::process, &laser_mapping };
+  std::thread mapping_process{&Laser_mapping::process, &laser_mapping};
 
-    ros::spin();
-    return 0;
+  ros::spin();
+  
+  return 0;
 }
 // kate: indent-mode cstyle; indent-width 4; replace-tabs on;

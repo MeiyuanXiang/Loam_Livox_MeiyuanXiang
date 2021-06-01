@@ -44,10 +44,12 @@ namespace Ceres_pose_graph_3d
         {
             information.setIdentity();
         };
+
         Constraint3d(int id_begin, int id_end, Eigen::Quaterniond &q, Eigen::Vector3d &p) : id_begin(id_begin), id_end(id_end), t_be(q, p)
         {
             information.setIdentity();
         };
+
         // The name of the data type in the g2o file format.
         static std::string name()
         {
@@ -64,6 +66,7 @@ namespace Ceres_pose_graph_3d
         // Normalize the quaternion to account for precision loss due to
         // serialization.
         pose.q.normalize();
+
         return input;
     }
 
@@ -83,6 +86,7 @@ namespace Ceres_pose_graph_3d
                 }
             }
         }
+
         return input;
     }
 
@@ -105,8 +109,10 @@ namespace Ceres_pose_graph_3d
             if (poses->find(id) != poses->end())
             {
                 LOG(ERROR) << "Duplicate vertex with ID: " << id;
+
                 return false;
             }
+
             (*poses)[id] = pose;
 
             return true;
@@ -126,7 +132,6 @@ namespace Ceres_pose_graph_3d
                                 std::map<int, Pose, std::less<int>, MapAllocator> *poses,
                                 std::vector<Constraint, VectorAllocator> *constraints)
         {
-
             poses->clear();
             constraints->clear();
 
@@ -263,8 +268,10 @@ namespace Ceres_pose_graph_3d
         if (!outfile)
         {
             LOG(ERROR) << "Error opening the file: " << filename;
+
             return false;
         }
+
         for (std::map<int, Pose3d, std::less<int>,
                       Eigen::aligned_allocator<std::pair<const int, Pose3d>>>::
                  const_iterator poses_iter = poses.begin();
@@ -277,6 +284,7 @@ namespace Ceres_pose_graph_3d
                     << pair.second.q.x() << " " << pair.second.q.y() << " "
                     << pair.second.q.z() << " " << pair.second.q.w() << '\n';
         }
+
         return true;
     }
 
@@ -289,6 +297,7 @@ namespace Ceres_pose_graph_3d
         if (constraints.empty())
         {
             std::cout << "No constraints, no problem to optimize." << std::endl;
+
             return;
         }
 
@@ -401,6 +410,7 @@ public:
         if (!infile)
         {
             std::cout << "Open file: " << file_name << " fail, please check" << std::endl;
+
             return false;
         }
 
@@ -411,7 +421,9 @@ public:
             Ceres_pose_graph_3d::G2O_reader::ReadVertex(&infile, &pose3d_map);
             infile >> std::ws;
         }
+
         infile.close();
+
         return true;
     }
 
@@ -421,6 +433,7 @@ public:
         if (!infile)
         {
             std::cout << "Open file: " << file_name << " fail, please check" << std::endl;
+
             return false;
         }
 
@@ -432,7 +445,9 @@ public:
             infile >> id >> name;
             map_file_name.insert(std::make_pair(id, name));
         }
+
         infile.close();
+
         return true;
     }
 
@@ -451,6 +466,7 @@ public:
         {
             opm_pt_vec[i] = R_aff * raw_pt_vec[i] + T_aff;
         }
+
         return opm_pt_vec;
     }
 
@@ -483,6 +499,7 @@ public:
                 m_down_sample_filter.setInputCloud(pc_in);
                 m_down_sample_filter.filter(*pc_in);
             }
+            
             pts_vec_ori = PCL_TOOLS::pcl_pts_to_eigen_pts<float, _PointType>(pc_in);
 
             pts_vec_opm = refine_pts(pts_vec_ori, pose_ori.q.toRotationMatrix(), pose_ori.p,

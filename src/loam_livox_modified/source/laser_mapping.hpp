@@ -461,7 +461,7 @@ public:
 
     Laser_mapping()
     {
-
+        // 初始化点云类型
         m_laser_cloud_corner_last = pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>());
         m_laser_cloud_surf_last = pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>());
         m_laser_cloud_surround = pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>());
@@ -480,13 +480,13 @@ public:
         m_sub_laser_cloud_surf_last = m_ros_node_handle.subscribe<sensor_msgs::PointCloud2>("/pc2_surface", 10000, &Laser_mapping::laserCloudSurfLastHandler, this);
         m_sub_laser_cloud_full_res = m_ros_node_handle.subscribe<sensor_msgs::PointCloud2>("/pc2_full", 10000, &Laser_mapping::laserCloudFullResHandler, this);
 
-        m_pub_laser_cloud_surround = m_ros_node_handle.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surround", 10000);
         // 每隔100帧发布当前帧周围1000m范围内降采样后的points
+        m_pub_laser_cloud_surround = m_ros_node_handle.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surround", 10000);
 
-        m_pub_last_corner_pts = m_ros_node_handle.advertise<sensor_msgs::PointCloud2>("/features_corners", 10000);
         // 每一帧corners在map下的points，pose graph 更新前的地图
-        m_pub_last_surface_pts = m_ros_node_handle.advertise<sensor_msgs::PointCloud2>("/features_surface", 10000);
+        m_pub_last_corner_pts = m_ros_node_handle.advertise<sensor_msgs::PointCloud2>("/features_corners", 10000);
         // 每一帧plannes在map下的points，pose graph 更新前的地图
+        m_pub_last_surface_pts = m_ros_node_handle.advertise<sensor_msgs::PointCloud2>("/features_surface", 10000);
 
         m_pub_match_corner_pts = m_ros_node_handle.advertise<sensor_msgs::PointCloud2>("/match_pc_corners", 10000);
         // local map corners
@@ -530,6 +530,7 @@ public:
         {
             Data_pair *date_pair_ptr = new Data_pair();
             m_map_data_pair.insert(std::make_pair(time_stamp, date_pair_ptr));
+
             return date_pair_ptr;
         }
         else
@@ -544,6 +545,7 @@ public:
         nh.param<T>(parameter_name.c_str(), parameter, default_val);
         ENABLE_SCREEN_PRINTF;
         screen_out << "[Laser_mapping_ros_param]: " << parameter_name << " ==> " << parameter << std::endl;
+
         return parameter;
     }
 
@@ -675,6 +677,7 @@ public:
         writer.StartArray();      // Between StartArray()/EndArray(),
         for (size_t i = 0; i < (size_t)(eigen_mat.cols() * eigen_mat.rows()); i++)
             writer.Double(eigen_mat(i));
+
         writer.EndArray();
     }
 
@@ -699,6 +702,7 @@ public:
         {
             writer.Double(*it);
         }
+
         writer.EndArray();
     }
 
@@ -770,8 +774,8 @@ public:
         m_pub_laser_aft_loopclosure_path.publish(m_laser_after_loopclosure_path);
     }
 
-    //ANCHOR loop_detection
-    // 线程 不断地检测是否有闭环，有闭环后进行对齐，然后进行pose graph更新每个finished keyframe位姿，更新地图发布到 "/pc_aft_loop_closure" 上
+    // loop_detection
+    // 线程，不断地检测是否有闭环，有闭环后进行对齐，然后进行pose graph更新每个finished keyframe位姿，更新地图发布到 "/pc_aft_loop_closure" 上
     void service_loop_detection()
     {
         sensor_msgs::PointCloud2 ros_laser_cloud_surround;
@@ -852,6 +856,7 @@ public:
                 down_sample_filter.setInputCloud(keyframe_vec.back()->m_accumulated_point_cloud.makeShared());
                 down_sample_filter.filter(keyframe_vec.back()->m_accumulated_point_cloud);
             }
+
             map_id_pc.insert(std::make_pair(map_id_pc.size(), keyframe_vec.back()->m_accumulated_point_cloud));
             // key:   finished keyframe index(start from 0)
             // value: finished keyframe 存放的m_accumulated_point_cloud
@@ -882,6 +887,7 @@ public:
                 json_file_name = std::string(m_loop_save_dir_name).append("/pose_").append(std::to_string(curren_frame_idx)).append(".json");
                 dump_pose_and_regerror(json_file_name, q_curr, t_curr, reg_error_his);
             }
+
             m_timer.tic("Find loop");
 
             std::shared_ptr<Maps_keyframe<float>> last_keyframe = keyframe_vec.back(); // 当前finished keyframe
@@ -988,6 +994,7 @@ public:
                             screen_out << ICP_q.coeffs().transpose() << std::endl;
                             screen_out << ICP_t.transpose() << std::endl;
                         }
+
                         Ceres_pose_graph_3d::VectorOfConstraints constrain_vec_temp;
                         constrain_vec_temp = constrain_vec;
                         constrain_vec_temp.push_back(
@@ -1038,6 +1045,7 @@ public:
                         break;
                     }
                 } // end 满足相似性潜在条件
+
                 if (if_end)
                 {
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -1057,8 +1065,9 @@ public:
                 m_pub_debug_pts.publish(ros_laser_cloud_surround);
                 screen_out << m_timer.toc_string("Pub surround pts") << std::endl;
             }
-            if (if_end)
-            { // 退出while循环
+
+            if (if_end) // 退出while循环
+            {
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
                 // break; default when there is a loop break while, we comment this line to prevent jump while
             }
@@ -1128,11 +1137,13 @@ public:
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1500));
             }
+
             last_update_index = m_current_frame_index;
             pcl::PointCloud<PointType> pc_temp;
             laser_cloud_surround->clear();
             if (m_pt_cell_map_full.get_cells_size() == 0)
                 continue;
+
             std::vector<Points_cloud_map<float>::Mapping_cell_ptr> cell_vec = m_pt_cell_map_full.find_cells_in_radius(m_t_w_curr, 1000.0);
             // 获得当前帧周围的map cells(corners + plannes)
             for (size_t i = 0; i < cell_vec.size(); i++)
@@ -1149,6 +1160,7 @@ public:
                     *laser_cloud_surround += cell_vec[i]->get_pointcloud();
                 }
             }
+
             if (laser_cloud_surround->points.size())
             {
                 down_sample_filter_surface.setInputCloud(laser_cloud_surround);
@@ -1257,10 +1269,13 @@ public:
     {
         if (m_lastest_pc_matching_refresh_time < 0)
             return 1;
+
         if (point_cloud_current_timestamp - m_lastest_pc_matching_refresh_time < m_maximum_pointcloud_delay_time)
             return 1;
+
         if (m_lastest_pc_reg_time == m_lastest_pc_matching_refresh_time) // All is processed
             return 1;
+
         screen_printf("*** Current pointcloud timestamp = %.3f, lastest buff timestamp = %.3f, lastest_pc_reg_time = %.3f ***\r\n",
                       point_cloud_current_timestamp,
                       m_lastest_pc_matching_refresh_time,
@@ -1291,17 +1306,17 @@ public:
         current_laser_cloud_surf_last = *m_laser_cloud_surf_last;     // 当前帧plannes
         current_laser_cloud_full_color = *m_laser_cloud_full_color_res;
 
-        float min_t, max_t; // 本帧数据中最小，最大时间戳
-        find_min_max_intensity(current_laser_cloud_full.makeShared(), min_t, max_t);
-        // 点的intensity存放的是时间戳
+        float min_t, max_t;                                                          // 本帧数据中最小，最大时间戳
+        find_min_max_intensity(current_laser_cloud_full.makeShared(), min_t, max_t); // 点的intensity存放的是时间戳
 
         double point_cloud_current_timestamp = min_t;
         if (point_cloud_current_timestamp > m_lastest_pc_income_time)
         {
             m_lastest_pc_income_time = point_cloud_current_timestamp;
         }
-        point_cloud_current_timestamp = m_lastest_pc_income_time;
-        // 始终让 point_cloud_current_timestamp ， m_lastest_pc_income_time 保持相等
+
+        point_cloud_current_timestamp = m_lastest_pc_income_time; // 始终让 point_cloud_current_timestamp ， m_lastest_pc_income_time 保持相等
+
         m_minimum_pt_time_stamp = m_last_time_stamp;
         m_maximum_pt_time_stamp = max_t;
         m_last_time_stamp = max_t;
@@ -1319,6 +1334,7 @@ public:
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
+
         *(m_logger_timer.get_ostream()) << m_timer.toc_string("Wait sync") << std::endl;
         screen_printf("****** After timestamp info = [%.6f, %.6f, %.6f, %.6f ] ****** \r\n", m_minimum_pt_time_stamp, m_maximum_pt_time_stamp, min_t, m_lastest_pc_matching_refresh_time);
 
@@ -1375,6 +1391,7 @@ public:
         {
             return 0;
         }
+
         m_timer.tic("Add new frame");
 
         PointType pointOri, pointSel;
@@ -1383,7 +1400,7 @@ public:
         for (int i = 0; i < laser_corner_pt_num; i++)
         {
             pc_reg.pointAssociateToMap(&laserCloudCornerStack->points[i], &pointSel, refine_blur(laserCloudCornerStack->points[i].intensity, m_minimum_pt_time_stamp, m_maximum_pt_time_stamp), g_if_undistore);
-            pc_new_feature_corners->push_back(pointSel); // NOTE 上一行refine_blur 是利用时间戳消除畸变,返回一个时间/位置的比例.pointAssociateToMap这个函数把消除畸变并且转换到地图坐标系下的点记录到&pointSel里.
+            pc_new_feature_corners->push_back(pointSel); // 上一行refine_blur 是利用时间戳消除畸变,返回一个时间/位置的比例.pointAssociateToMap这个函数把消除畸变并且转换到地图坐标系下的点记录到&pointSel里.
         }
 
         for (int i = 0; i < laser_surface_pt_num; i++)
@@ -1409,10 +1426,10 @@ public:
             (t_diff > history_add_t_step) ||                                        // 0
             (r_diff > history_add_angle_step * 57.3))                               // 0
         {
-            m_last_his_add_q = m_q_w_curr; // NOTE 存档当前迭代位姿
+            m_last_his_add_q = m_q_w_curr; // 存档当前迭代位姿
             m_last_his_add_t = m_t_w_curr;
 
-            m_laser_cloud_corner_history.push_back(*pc_new_feature_corners); // NOTE 存档历史点云
+            m_laser_cloud_corner_history.push_back(*pc_new_feature_corners); // 存档历史点云
             m_laser_cloud_surface_history.push_back(*pc_new_feature_surface);
             m_mutex_dump_full_history.lock();
             m_laser_cloud_full_history.push_back(current_laser_cloud_full);
@@ -1461,7 +1478,7 @@ public:
         *(m_logger_common.get_ostream()) << "New added regtime " << point_cloud_current_timestamp << endl;
         if ((m_lastest_pc_reg_time < point_cloud_current_timestamp) || (point_cloud_current_timestamp < 10.0))
         {
-            m_q_w_curr = pc_reg.m_q_w_curr; // NOTE 如线程得到最新位姿则更新位姿
+            m_q_w_curr = pc_reg.m_q_w_curr; // 如线程得到最新位姿则更新位姿
             m_t_w_curr = pc_reg.m_t_w_curr;
             m_lastest_pc_reg_time = point_cloud_current_timestamp;
         }
@@ -1469,6 +1486,7 @@ public:
         {
             *(m_logger_common.get_ostream()) << "***** older update, reject update pose *****" << endl;
         }
+
         *(m_logger_pcd.get_ostream()) << "--------------------" << endl;
         m_logger_pcd.printf("Curr_Q = %f,%f,%f,%f\r\n", m_q_w_curr.w(), m_q_w_curr.x(), m_q_w_curr.y(), m_q_w_curr.z());
         m_logger_pcd.printf("Curr_T = %f,%f,%f\r\n", m_t_w_curr(0), m_t_w_curr(1), m_t_w_curr(2));
@@ -1519,10 +1537,12 @@ public:
                 {
                     m_keyframe_of_updating_list.back()->m_accumulated_point_cloud += (*it);
                 }
+
                 if (m_keyframe_need_precession_list.size() > m_loop_closure_maximum_keyframe_in_wating_list) // 最多10帧
                 {
                     m_keyframe_need_precession_list.pop_front();
                 }
+
                 m_laser_cloud_full_history.clear();
                 m_mutex_dump_full_history.unlock();
                 m_keyframe_of_updating_list.push_back(std::make_shared<Maps_keyframe<float>>());
@@ -1658,6 +1678,7 @@ public:
         {
             m_service_loop_detection = new std::future<void>(std::async(std::launch::async, &Laser_mapping::service_loop_detection, this));
         }
+
         timer_all.tic();
         ros::Rate rate(200);
         while (ros::ok())
@@ -1670,6 +1691,7 @@ public:
             {
                 sleep(0.0001);
             }
+            
             m_mutex_buf.lock();
             while (m_queue_avail_data.size() >= (unsigned int)m_max_buffer_size) // 20000000
             {

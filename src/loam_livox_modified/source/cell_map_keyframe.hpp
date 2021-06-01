@@ -37,10 +37,8 @@
 
 typedef pcl::PointXYZI pcl_pt;
 
-// typedef double         COMP_TYPE;
 typedef float COMP_TYPE;
 
-// #define FUNC_T
 #define FUNC_T inline
 
 enum Feature_type
@@ -60,7 +58,6 @@ public:
     DATA_TYPE m_resolution;                  // cell fixed size
     Eigen::Matrix<DATA_TYPE, 3, 1> m_center; // Cc
 
-    //private:
     Eigen::Matrix<COMP_TYPE, 3, 1> m_xyz_sum; // sum_x, sum_y, sum_z
     Eigen::Matrix<COMP_TYPE, 3, 1> m_mean, m_mean_last;
     Eigen::Matrix<COMP_TYPE, 3, 3> m_cov_mat, m_cov_mat_last, m_cov_mat_avoid_singularity;
@@ -112,12 +109,12 @@ public:
         m_mutex_cell->unlock();
         clear_data();
     };
+
     ADD_SCREEN_PRINTF_OUT_METHOD;
 
     // 把cell的一些属性按照json格式写入到std::string里返回
     FUNC_T std::string to_json_string()
     {
-        // std::unique_lock< std::mutex > lock( *m_mutex_cell );
         get_icovmat(); // update data
         rapidjson::Document document;
         rapidjson::StringBuffer sb;
@@ -125,7 +122,6 @@ public:
 #if IF_JSON_PRETTY_WRITTER
         rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(sb);
 #else
-        //rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
         rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
 #endif
         writer.StartObject();             // Between StartObject()/EndObject(),
@@ -155,6 +151,7 @@ public:
             Common_tools::save_mat_to_jason_writter(writer, "Eig_vec", I);
             Common_tools::save_mat_to_jason_writter(writer, "Eig_val", Vec3d);
         }
+
         writer.Key("Pt_vec");
         writer.SetMaxDecimalPlaces(3);
         writer.StartArray();
@@ -164,6 +161,7 @@ public:
             writer.Double(m_points_vec[i](1));
             writer.Double(m_points_vec[i](2));
         }
+
         writer.EndArray();
         writer.SetMaxDecimalPlaces(1000);
 
@@ -187,6 +185,7 @@ public:
         {
             str_ss << path << "/" << file_name.c_str();
         }
+
         std::fstream ofs;
         ofs.open(str_ss.str().c_str(), std::ios_base::out);
         std::cout << "Save to " << str_ss.str();
@@ -232,7 +231,6 @@ public:
     // 返回Cu
     FUNC_T Eigen::Matrix<DATA_TYPE, 3, 1> get_mean()
     {
-        //std::unique_lock<std::mutex> lock(*m_mutex_cell_mean);
         if (m_if_incremental_update_mean_and_cov == false)
         {
             if (m_mean_need_update)
@@ -240,8 +238,10 @@ public:
                 set_data_need_update();
                 m_mean = m_xyz_sum / ((DATA_TYPE)(m_points_vec.size()));
             }
+
             m_mean_need_update = false;
         }
+
         return m_mean.template cast<DATA_TYPE>();
     }
 
@@ -255,6 +255,7 @@ public:
                 return;
             }
         }
+
         m_last_eigen_decompose_size = m_points_vec.size();
         Eigen::SelfAdjointEigenSolver<Eigen::Matrix<COMP_TYPE, 3, 3>> eigensolver;
         eigensolver.compute(m_cov_mat);
@@ -272,6 +273,7 @@ public:
         COMP_TYPE min_covar_eigvalue_mult_ = 0.01; // pcl: 0.01
         if (!IF_EIGEN_REPLACE)
             min_covar_eigvalue_mult_ = 0;
+
         min_covar_eigvalue = min_covar_eigvalue_mult_ * eigen_val(2, 2);
         if (eigen_val(0, 0) < min_covar_eigvalue)
         {
@@ -327,9 +329,12 @@ public:
                     m_cov_mat -= pt_size * (m_mean * m_mean.transpose());
                     m_cov_mat /= (pt_size - 1);
                 }
+
                 m_cov_mat_avoid_singularity = get_cov_mat_avoid_singularity();
             }
+
             m_covmat_need_update = false;
+
             return m_cov_mat_avoid_singularity.template cast<DATA_TYPE>();
         }
 
@@ -345,7 +350,9 @@ public:
                     m_icov_mat.setIdentity();
                 }
             }
+
             m_icovmat_need_update = false;
+
             return m_icov_mat.template cast<DATA_TYPE>();
         }
 
@@ -363,6 +370,7 @@ public:
         FUNC_T std::vector<PT_TYPE> get_pointcloud_eigen()
         {
             std::unique_lock<std::mutex> lock(*m_mutex_cell);
+
             return m_points_vec;
         }
 
@@ -412,6 +420,7 @@ public:
             {
                 m_pcl_pc_vec.push_back(PCL_TOOLS::eigen_to_pcl_pt<pcl_pt>(pt));
             }
+
             m_points_vec.push_back(pt);
             if (m_points_vec.size() > m_maximum_points_size)
             {
@@ -442,6 +451,7 @@ public:
                     get_covmat();
                 }
             }
+
             m_last_update_time = Common_tools::timer_tic();
             set_data_need_update();
         }
@@ -459,6 +469,7 @@ public:
             {
                 append_pt(pt_vec[i]);
             }
+
             set_data_need_update();
         };
 
@@ -494,11 +505,13 @@ public:
                 m_feature_vector = m_eigen_vec.block<3, 1>(0, 0);
                 return m_feature_type;
             }
+
             if (m_eigen_val[2] * m_feature_determine_threshold_line > m_eigen_val[1])
             {
                 m_feature_type = e_feature_line;
                 m_feature_vector = m_eigen_vec.block<3, 1>(0, 2);
             }
+
             return m_feature_type;
         }
     };
@@ -603,6 +616,7 @@ public:
             {
                 it->second->clear_data();
             }
+
             m_map_pt_cell.clear();
             m_cell_vec.clear();
             m_pcl_cells_center->clear();
@@ -623,10 +637,12 @@ public:
                 m_y_max = std::max(input_pt_vec[i](1), m_y_max);
                 m_z_max = std::max(input_pt_vec[i](2), m_z_max);
             }
+
             if (cell_vec != nullptr)
             {
                 cell_vec->clear();
             }
+
             for (size_t i = 0; i < input_pt_vec.size(); i++)
             {
                 std::shared_ptr<Mapping_cell> cell = find_cell(input_pt_vec[i], 1, 1); // 找到点应该插入到什么属性的cell中，返回对应的地址
@@ -663,6 +679,7 @@ public:
                 {
                     cell_vec->clear();
                 }
+
                 for (size_t i = 0; i < input_pt_vec.size(); i++)
                 {
                     Mapping_cell_ptr cell = find_cell(input_pt_vec[i], 1, 1);
@@ -692,6 +709,7 @@ public:
                     }
                 }
             }
+
             m_current_frame_idx++;
             screen_out << "Input points size: " << input_pt_vec.size() << ", "
                        << "add cell number: " << get_cells_size() - current_size << ", "
@@ -773,10 +791,6 @@ public:
                     }
                     else // 该cell从上次有point插进来到现在已经过去了2000帧
                     {
-                        // Avoid confilcts of revisited
-                        // ENABLE_SCREEN_PRINTF;
-                        // screen_out << "!!!!! Cell revisit, curr_idx = " << m_current_frame_idx << " ,last_idx = " << it->second->m_last_update_frame_idx << std::endl;
-
                         // 重新创建一个cell，中心还是原来的中心
                         Mapping_cell_ptr new_cell = std::make_shared<Mapping_cell>(it->second->get_center(), (DATA_TYPE)m_resolution);
                         m_cell_vec.push_back(new_cell);
@@ -786,6 +800,7 @@ public:
                         it->second->m_last_update_frame_idx = m_current_frame_idx;
                     }
                 }
+
                 return it->second;
             }
         }
@@ -846,7 +861,9 @@ public:
                     break;
                 }
             }
+
             str_s << "]";
+
             return str_s.str();
         }
 
@@ -863,6 +880,7 @@ public:
             {
                 str_ss << path << "/" << file_name.c_str();
             }
+
             std::fstream ofs;
             ofs.open(str_ss.str().c_str(), std::ios_base::out);
             screen_out << "Save to " << str_ss.str();
@@ -887,18 +905,19 @@ public:
             {
                 res_mat[i] = (T)json_array[i].GetDouble();
             }
+
             return res_mat;
         }
 
         FUNC_T std::vector<PT_TYPE> query_point_cloud(std::vector<Mapping_cell *> &cell_vec)
         {
             std::vector<std::vector<PT_TYPE>> pt_vec_vec;
-            // pt_vec_vec.reserve(1000);
             pt_vec_vec.reserve(cell_vec.size());
             for (int i = 0; i < cell_vec.size(); i++)
             {
                 pt_vec_vec.push_back(cell_vec[i]->get_pointcloud_eigen());
             }
+
             return Common_tools::vector_2d_to_1d(pt_vec_vec);
         }
     };
@@ -979,6 +998,7 @@ public:
             {
                 vec_3d *= (-1.0);
             }
+
             int phi_res = PHI_RESOLUTION;
             int theta_res = THETA_RESOLUTION;
             double phi_step = M_PI / phi_res;
@@ -1046,6 +1066,7 @@ public:
             {
                 return 0;
             }
+
             size_t cols = img_a.cols();
             size_t rows = img_a.rows();
             float max_res = -0;
@@ -1085,6 +1106,7 @@ public:
             cv::eigen2cv(img_b, hist_b);
             return cv::compareHist(hist_a, hist_b, method); // https://docs.opencv.org/2.4/modules/imgproc/doc/histograms.html?highlight=comparehist
         }
+
         // Histogram comparison methods
         // enum {
         //     CV_COMP_CORREL = 0,                   Correlation
@@ -1095,6 +1117,7 @@ public:
         //     CV_COMP_CHISQR_ALT = 4,
         //     CV_COMP_KL_DIV = 5
         // };
+
         FUNC_T static float max_similiarity_of_two_image_opencv(const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> &img_a, const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> &img_b, int method = CV_COMP_CORREL)
         {
             cv::Mat hist_a, hist_b;
@@ -1110,6 +1133,7 @@ public:
             cv::Point minLoc;
             cv::Point maxLoc;
             minMaxLoc(result, &minVal, &maxVal, &minLoc, &maxLoc, cv::Mat());
+
             return maxVal;
         }
 
@@ -1124,6 +1148,7 @@ public:
                     (*it)->determine_feature(if_recompute);
                 }
             }
+
             m_last_update_feature_cells_number = m_set_cell.size();
         }
 
@@ -1143,9 +1168,11 @@ public:
                         // Init octree
                         m_pcl_cells_center->push_back(pcl::PointXYZ((*it)->m_center(0), (*it)->m_center(1), (*it)->m_center(2)));
                     }
+
                     last_cell_numbers = m_set_cell.size();
                 }
             };
+
             m_accumulate_frames++;
         }
 
@@ -1173,6 +1200,7 @@ public:
             {
                 res_pt += (*it)->get_pointcloud();
             }
+
             return res_pt;
         }
 
@@ -1185,7 +1213,9 @@ public:
             {
                 cell_center += (*(it))->get_center();
             }
+
             cell_center *= (1.0 / (float)m_set_cell.size());
+
             return cell_center;
         }
 
@@ -1201,8 +1231,10 @@ public:
                 {
                     err_vec->push_back(dis);
                 }
+
                 dis_vec.insert((float)dis.norm());
             }
+
             // https://stackoverflow.com/questions/1033089/can-i-increment-an-iterator-by-just-adding-a-number
             return *std::next(dis_vec.begin(), std::ceil((dis_vec.size() - 1) * ratio));
         }
@@ -1211,17 +1243,14 @@ public:
                                                                                                         int padding_size_x, // 填充
                                                                                                         int padding_size_y)
         {
-
             Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic> res_img;
             int size_w = in_mat.cols();
             int size_h = in_mat.rows();
 
             res_img.resize(size_h + 2 * padding_size_y, size_w + 2 * padding_size_x);
-            // res_img.setZero();
             res_img.block(padding_size_y, padding_size_x, size_h, size_w) = in_mat;
 
             // Padding four corners
-
             // Top left
             res_img.block(0, 0, padding_size_y, padding_size_x) = in_mat.block(size_h - padding_size_y, size_w - padding_size_x, padding_size_y, padding_size_x);
             // Top right
@@ -1255,6 +1284,7 @@ public:
             cv::eigen2cv(res_img, cv_img);
             cv::GaussianBlur(cv_img, cv_img, kernel, sigma);
             cv::cv2eigen(cv_img, res_img);
+
             return res_img.block(kernel_size + 1, kernel_size + 1, in_mat.rows(), in_mat.cols());
         }
 
@@ -1268,6 +1298,7 @@ public:
             ss << "Line_cell_all: " << m_feature_vecs_line.size() << std::endl;
             ss << "Plane_cell_all: " << m_feature_vecs_plane.size() << std::endl;
             ss << "==========" << std::endl;
+
             return ss.str();
         }
 
@@ -1351,16 +1382,19 @@ public:
                 {
                     m_feature_vecs_line.push_back(cell->m_feature_vector.template cast<DATA_TYPE>());
                 }
+
                 if (feature_type == Feature_type::e_feature_plane)
                 {
                     m_feature_vecs_plane.push_back(cell->m_feature_vector.template cast<DATA_TYPE>());
                 }
+
                 if ((cell->get_center() - keyframe_center).norm() < m_roi_range)
                 {
                     if (feature_type == Feature_type::e_feature_line)
                     {
                         m_feature_vecs_line_roi.push_back(cell->m_feature_vector.template cast<DATA_TYPE>());
                     }
+
                     if (feature_type == Feature_type::e_feature_plane)
                     {
                         m_feature_vecs_plane_roi.push_back(cell->m_feature_vector.template cast<DATA_TYPE>());
@@ -1382,7 +1416,6 @@ public:
         FUNC_T int analyze(int if_recompute = 0)
         {
             update_features_of_each_cells();
-
             extract_feature_mapping_new(m_set_cell, m_feature_img_line, m_feature_img_plane, m_feature_img_line_roi, m_feature_img_plane_roi, if_recompute);
             return 0;
         }
@@ -1402,6 +1435,7 @@ public:
                 {
                     str_s << ",";
                 }
+
                 str_s << cell->to_json_string();
                 avail_cell_size++;
 
@@ -1411,7 +1445,9 @@ public:
                     break;
                 }
             }
+
             str_s << "]";
+
             return str_s.str();
         }
 
@@ -1428,6 +1464,7 @@ public:
             {
                 str_ss << path << "/" << file_name.c_str();
             }
+
             std::fstream ofs;
             ofs.open(str_ss.str().c_str(), std::ios_base::out);
             screen_out << "Save to " << str_ss.str();
@@ -1453,6 +1490,7 @@ public:
             {
                 mat_cov = mat_cov + (feature_vectors[i] * feature_vectors[i].transpose()).template cast<double>();
             }
+
             Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 3, 3>> eigensolver;
             eigensolver.compute(mat_cov);
             eigen_val = eigensolver.eigenvalues().template cast<T>();
@@ -1470,6 +1508,7 @@ public:
             int devide_size = img_a.rows() * img_a.cols() - 1;
             float std_a = (img_sub_mea_a.array().pow(2)).sum() / devide_size;
             float std_b = (img_sub_mea_b.array().pow(2)).sum() / devide_size;
+
             return sqrt(product * product / std_a / std_b);
         };
 
@@ -1481,6 +1520,7 @@ public:
             {
                 screen_out << "Open file " << file_name << " fail!!! please check: " << std::endl;
             }
+
             rapidjson::Document document;
             rapidjson::StringBuffer sb;
 #if IF_JSON_PRETTY_WRITTER
@@ -1511,6 +1551,7 @@ public:
             {
                 screen_out << "Center of cell is: " << (*(it))->get_center().transpose() << std::endl;
             }
+            
             m_if_verbose_screen_printf = 1;
         }
     };

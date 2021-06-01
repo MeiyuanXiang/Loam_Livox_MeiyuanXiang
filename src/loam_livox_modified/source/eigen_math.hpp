@@ -34,12 +34,10 @@ namespace Eigen_math
         {
             if (if_force_sharp_angle)
             {
-                // return acos( abs( vec_a.dot( vec_b ) )*0.9999 / ( vec_a_norm * vec_b_norm ) );
                 return acos(abs(vec_a.dot(vec_b)) / (vec_a_norm * vec_b_norm));
             }
             else
             {
-                // return acos( (vec_a.dot(vec_b))*0.9999 / (vec_a_norm*vec_b_norm));
                 return acos((vec_a.dot(vec_b)) / (vec_a_norm * vec_b_norm));
             }
         }

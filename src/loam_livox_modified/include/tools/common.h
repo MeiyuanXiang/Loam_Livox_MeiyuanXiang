@@ -5,7 +5,7 @@
 #include <cmath>
 
 #include <pcl/point_types.h>
-#define printf_line printf( " %s %d \r\n", __FILE__, __LINE__ );
+#define printf_line printf(" %s %d \r\n", __FILE__, __LINE__);
 typedef pcl::PointXYZI PointType;
 typedef pcl::PointXYZI ColorType;
 extern double FIRST_RECEIVED_TIME;

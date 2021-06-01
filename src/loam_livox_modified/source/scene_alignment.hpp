@@ -34,6 +34,7 @@ public:
     int m_para_scene_alignments_maximum_residual_block = 5000;
     int m_maximum_icp_iteration = 10;
     float m_accepted_threshold = 0.2;
+
     Scene_alignment()
     {
         pair_idx = 0;
@@ -73,6 +74,7 @@ public:
                 printf("GetParseError, err_code =  %d\n", doc.GetParseError());
                 return 0;
             }
+
             auto json_arrray = Common_tools::get_json_array<double>(doc["Q"].GetArray());
             q_curr.w() = json_arrray[0];
             q_curr.x() = json_arrray[1];
@@ -157,6 +159,7 @@ public:
                         fprintf(fp, " %f", info_mat(c, r));
                     }
                 }
+
                 fprintf(fp, "\n");
             }
 
@@ -183,6 +186,7 @@ public:
                         pose3d_vec[i].p(0), pose3d_vec[i].p(1), pose3d_vec[i].p(2),
                         pose3d_vec[i].q.x(), pose3d_vec[i].q.y(), pose3d_vec[i].q.z(), pose3d_vec[i].q.w());
             }
+
             for (size_t i = 0; i < pose_csn_vec.size(); i++)
             {
                 auto csn = pose_csn_vec[i];
@@ -198,6 +202,7 @@ public:
                         fprintf(fp, " %f", info_mat(c, r));
                     }
                 }
+
                 fprintf(fp, "\n");
             }
 
@@ -255,6 +260,7 @@ public:
             {
                 fprintf(fp, "%d %s\r\n", it->first, it->second.c_str());
             }
+
             fclose(fp);
         }
     }

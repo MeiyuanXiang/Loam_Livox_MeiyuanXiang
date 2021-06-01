@@ -5,7 +5,7 @@
 #include <cmath>
 
 #include <pcl/point_types.h>
-#define printf_line printf( " %s %d \r\n", __FILE__, __LINE__ );
+#define printf_line printf(" %s %d \r\n", __FILE__, __LINE__);
 typedef pcl::PointXYZI PointType;
 
 inline double rad2deg(double radians)

@@ -36,7 +36,6 @@ struct ceres_icp_point2point_mb
                                                                                                m_motion_blur_s(motion_blur_s),
                                                                                                m_q_last(q_s),
                                                                                                m_t_last(t_s)
-
     {
         m_weigh = 1.0;
     };
@@ -44,7 +43,6 @@ struct ceres_icp_point2point_mb
     template <typename T>
     bool operator()(const T *_q, const T *_t, T *residual) const
     {
-
         Eigen::Quaternion<T> q_last{(T)m_q_last(0), (T)m_q_last(1), (T)m_q_last(2), (T)m_q_last(3)};
         Eigen::Matrix<T, 3, 1> t_last = m_t_last.template cast<T>();
 
@@ -61,6 +59,7 @@ struct ceres_icp_point2point_mb
         residual[0] = (pt_transfromed(0) - T(m_closest_pt(0))) * T(m_weigh);
         residual[1] = (pt_transfromed(1) - T(m_closest_pt(1))) * T(m_weigh);
         residual[2] = (pt_transfromed(2) - T(m_closest_pt(2))) * T(m_weigh);
+
         return true;
     };
 
@@ -107,7 +106,6 @@ struct ceres_icp_point2line_mb
     template <typename T>
     bool operator()(const T *_q, const T *_t, T *residual) const
     {
-
         Eigen::Quaternion<T> q_last{(T)m_q_last(0), (T)m_q_last(1), (T)m_q_last(2), (T)m_q_last(3)};
         Eigen::Matrix<T, 3, 1> t_last = m_t_last.template cast<T>();
 
@@ -171,7 +169,6 @@ struct ceres_icp_point2plane_mb
                                                                                                m_motion_blur_s(motion_blur_s),
                                                                                                m_q_last(q_s),
                                                                                                m_t_last(t_s)
-
     {
         m_unit_vec_ab = target_line_b - target_line_a;
         m_unit_vec_ab = m_unit_vec_ab / m_unit_vec_ab.norm();
@@ -186,7 +183,6 @@ struct ceres_icp_point2plane_mb
     template <typename T>
     bool operator()(const T *_q, const T *_t, T *residual) const
     {
-
         Eigen::Quaternion<T> q_last{(T)m_q_last(0), (T)m_q_last(1), (T)m_q_last(2), (T)m_q_last(3)};
         Eigen::Matrix<T, 3, 1> t_last = m_t_last.template cast<T>();
 
@@ -209,7 +205,7 @@ struct ceres_icp_point2plane_mb
         residual[0] = residual_vec(0) * T(m_weigh);
         residual[1] = residual_vec(1) * T(m_weigh);
         residual[2] = residual_vec(2) * T(m_weigh);
-
+        
         return true;
     };
 
@@ -255,7 +251,6 @@ struct ceres_icp_point2line
     template <typename T>
     bool operator()(const T *_q, const T *_t, T *residual) const
     {
-
         Eigen::Quaternion<T> q_last{(T)m_q_last(0), (T)m_q_last(1), (T)m_q_last(2), (T)m_q_last(3)};
         Eigen::Matrix<T, 3, 1> t_last = m_t_last.template cast<T>();
 
@@ -312,7 +307,6 @@ struct ceres_icp_point2plane
                                                                                             m_target_line_c(target_line_c),
                                                                                             m_q_last(q_s),
                                                                                             m_t_last(t_s)
-
     {
         m_unit_vec_ab = target_line_b - target_line_a;
         m_unit_vec_ab = m_unit_vec_ab / m_unit_vec_ab.norm();
@@ -327,7 +321,6 @@ struct ceres_icp_point2plane
     template <typename T>
     bool operator()(const T *_q, const T *_t, T *residual) const
     {
-
         Eigen::Quaternion<T> q_last{(T)m_q_last(0), (T)m_q_last(1), (T)m_q_last(2), (T)m_q_last(3)};
         Eigen::Matrix<T, 3, 1> t_last = m_t_last.template cast<T>();
 
@@ -347,7 +340,7 @@ struct ceres_icp_point2plane
         residual[0] = residual_vec(0) * T(m_weigh);
         residual[1] = residual_vec(1) * T(m_weigh);
         residual[2] = residual_vec(2) * T(m_weigh);
-
+        
         return true;
     };
 

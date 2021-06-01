@@ -70,26 +70,26 @@ class Laser_feature
 public:
     const double m_para_scanPeriod = 0.1;
 
-    int m_if_pub_debug_feature = 1;
+    int m_if_pub_debug_feature = 1; // 是否开启调试模式
 
     bool m_is_receive_first_timestamp = true;
 
-    const int m_para_system_delay = 20;
+    const int m_para_system_delay = 20; // 弃用前20帧初始数据
     int m_para_system_init_count = 0;
     bool m_para_systemInited = false;
-    float m_pc_curvature[400000];
-    int m_pc_sort_idx[400000];
-    int m_pc_neighbor_picked[400000];
-    int m_pc_cloud_label[400000];
-    int m_if_motion_deblur = 0;
-    int m_odom_mode = 0; //0 = for odom, 1 = for mapping
-    float m_plane_resolution;
-    float m_line_resolution;
-    int m_piecewise_number;
+    float m_pc_curvature[400000];     // 曲率
+    int m_pc_sort_idx[400000];        // 曲率对应的序号
+    int m_pc_neighbor_picked[400000]; // 是否筛选过，0没有，1有
+    int m_pc_cloud_label[400000];     // 2曲率很大，1曲率较大，0曲率较小，-1曲率很小(其中1包含了2，0包含了1，0和-1构成了点云全部的点)
+    int m_if_motion_deblur = 0;       // 是否将一个scan分成多段，以减少运动模糊
+    int m_odom_mode = 0;              // 0 = for odom, 1 = for mapping
+    float m_plane_resolution;         // 平面特征点降采样时滤波器体素体积大小
+    float m_line_resolution;          // 角点特征点降采样时滤波器体素体积大小
+    int m_piecewise_number;           // 分段个数
     std::string m_img_path;
     int m_if_color_map;
 
-    int m_maximum_input_lidar_pointcloud = 3;
+    int m_maximum_input_lidar_pointcloud = 3; // 支持多个雷达设备
     File_logger m_file_logger;
 
     bool m_if_pub_each_line = false;
@@ -142,9 +142,8 @@ public:
 
     int init_ros_env()
     {
-
-        ros::NodeHandle nh;
-        init_livox_lidar_para(nh);
+        ros::NodeHandle nh; // 创建管理节点句柄
+        init_livox_lidar_para(nh); // 初始化
         get_ros_parameter<int>(nh, "feature_extraction/scan_line", m_laser_scan_number, 16);
         get_ros_parameter<float>(nh, "feature_extraction/mapping_plane_resolution", m_plane_resolution, 0.8);
         get_ros_parameter<float>(nh, "feature_extraction/mapping_line_resolution", m_line_resolution, 0.8);
@@ -195,9 +194,9 @@ public:
             m_map_pointcloud_full_color_vec_vec[i].resize(m_piecewise_number);
         }
 
-        m_pub_pc_livox_corners = nh.advertise<sensor_msgs::PointCloud2>("/pc2_corners", 10000); // livox后端使用
-        m_pub_pc_livox_surface = nh.advertise<sensor_msgs::PointCloud2>("/pc2_surface", 10000); // livox后端使用
-        m_pub_pc_livox_full = nh.advertise<sensor_msgs::PointCloud2>("/pc2_full", 10000);       // livox后端使用
+        m_pub_pc_livox_corners = nh.advertise<sensor_msgs::PointCloud2>("/pc2_corners", 10000); // 角点特征点
+        m_pub_pc_livox_surface = nh.advertise<sensor_msgs::PointCloud2>("/pc2_surface", 10000); // 平面特征点
+        m_pub_pc_livox_full = nh.advertise<sensor_msgs::PointCloud2>("/pc2_full", 10000);       // 所有经过筛选后的好点
         m_pub_first_timestamp = nh.advertise<std_msgs::Float64>("/first_received_time", 10);
 
         //points cloud' color
@@ -213,10 +212,12 @@ public:
                 m_pub_each_scan.push_back(tmp);
             }
         }
+
         return 0;
     }
 
     ~Laser_feature(){};
+
     Laser_feature()
     {
         init_ros_env();
@@ -253,9 +254,10 @@ public:
         cloud_out.is_dense = true;
     }
 
-    // laser callback
+    // 雷达数据处理
     void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg, const std::string &topic_name)
     {
+        // 支持多个雷达设备同时扫描
         std::unique_lock<std::mutex> lock(m_mutex_lock_handler);
         int current_lidar_index = 0;
         for (int i = 0; i < m_maximum_input_lidar_pointcloud; i++)
@@ -266,11 +268,12 @@ public:
                 break;
             }
         }
+
         assert(current_lidar_index < m_maximum_input_lidar_pointcloud);
 
-        std::vector<pcl::PointCloud<PointType>> laserCloudScans(m_laser_scan_number); // vector of half-a-petals
+        std::vector<pcl::PointCloud<PointType>> laserCloudScans(m_laser_scan_number); // 每个scan的点云
 
-        // 最开始先积累20帧数据，然后才处理
+        // 积累20帧数据后再处理
         if (!m_para_systemInited)
         {
             m_para_system_init_count++;
@@ -285,21 +288,21 @@ public:
             }
         }
 
-        std::vector<int> scanStartInd(1000, 0);
-        std::vector<int> scanEndInd(1000, 0);
+        std::vector<int> scanStartInd(1000, 0); // 起始位置
+        std::vector<int> scanEndInd(1000, 0);   // 终止位置
 
         pcl::PointCloud<pcl::PointXYZI> laserCloudIn;
-        pcl::fromROSMsg(*laserCloudMsg, laserCloudIn);
+        pcl::fromROSMsg(*laserCloudMsg, laserCloudIn); // 将ros消息转换成pcl点云
         int raw_pts_num = laserCloudIn.size();
 
         m_file_logger.printf(" Time: %.5f, num_raw: %d, num_filted: %d\r\n", laserCloudMsg->header.stamp.toSec(), raw_pts_num, laserCloudIn.size());
 
-        size_t cloudSize = laserCloudIn.points.size();
+        size_t cloudSize = laserCloudIn.points.size(); // 点云的点数
 
-        if (m_lidar_type) // Livox scans
+        if (m_lidar_type) // 如果是Livox雷达
         {
-
-            laserCloudScans = m_livox.extract_laser_features(laserCloudIn, laserCloudMsg->header.stamp.toSec()); // livox scan into half-petals with edge and plane marked and non-good point removed
+            // 提取livox激光点云的边界和平面特征，并移除坏点
+            laserCloudScans = m_livox.extract_laser_features(laserCloudIn, laserCloudMsg->header.stamp.toSec());
             if (m_is_receive_first_timestamp)
             {
                 m_is_receive_first_timestamp = false;
@@ -308,47 +311,49 @@ public:
                 m_pub_first_timestamp.publish(first_timestamp);
             }
 
-            if (laserCloudScans.size() <= 5) // less than 5 scan
+            if (laserCloudScans.size() <= 5)
             {
                 return;
             }
 
-            m_laser_scan_number = laserCloudScans.size() * 1.0;
+            m_laser_scan_number = laserCloudScans.size() * 1.0; // ???，多此一举
 
             scanStartInd.resize(m_laser_scan_number);
             scanEndInd.resize(m_laser_scan_number);
             std::fill(scanStartInd.begin(), scanStartInd.end(), 0);
             std::fill(scanEndInd.begin(), scanEndInd.end(), 0);
 
-            if (m_if_pub_debug_feature) // only for debugging
+            if (m_if_pub_debug_feature) // 开启调试模式
             {
                 /********************************************
-                *    Feature extraction for livox lidar     *
-                ********************************************/
-
-                int piece_wise = m_piecewise_number; // devided a scan into 3 pieces to reduce motion blur
+                 *           livox 雷达的特征提取            *
+                 ********************************************/
+                int piece_wise = m_piecewise_number; // 将一个scan分成3段，以减少运动模糊
                 if (m_if_motion_deblur)
                 {
-                    piece_wise = 1; // if no motion blur, then consider scan as one piece
+                    piece_wise = 1; // 一个scan作为一个整段处理
                 }
+
                 vector<float> piece_wise_start(piece_wise);
                 vector<float> piece_wise_end(piece_wise);
 
-                for (int i = 0; i < piece_wise; i++) // split a scan into n pieces
+                // 将一个scan分段
+                for (int i = 0; i < piece_wise; i++)
                 {
                     int start_scans, end_scans;
 
-                    start_scans = int((m_laser_scan_number * (i)) / piece_wise);       // start from 0,1/3,2/3 of the total half-a-petals, split all petals in a scan callback into 3
-                    end_scans = int((m_laser_scan_number * (i + 1)) / piece_wise) - 1; // end by 1/3,2/3,3/3 of the total half-a-petals
+                    start_scans = int((m_laser_scan_number * (i)) / piece_wise);       // 从半片花瓣（一个scan）的0,1/3,2/3开始，将一个scan分成3段
+                    end_scans = int((m_laser_scan_number * (i + 1)) / piece_wise) - 1; // 在半片花瓣（一个scan）的1/3,2/3,3/3处结束
 
-                    int end_idx = laserCloudScans[end_scans].size() - 1;                                                                              // last point in the ending half-petal of current piece
-                    piece_wise_start[i] = ((float)m_livox.find_pt_info(laserCloudScans[start_scans].points[0])->idx) / m_livox.m_pts_info_vec.size(); // using point info to find the point id in orginal scan, std::map with custom compare search
+                    int end_idx = laserCloudScans[end_scans].size() - 1; // 当前段结束时半片花瓣的最后一点
+                    piece_wise_start[i] = ((float)m_livox.find_pt_info(laserCloudScans[start_scans].points[0])->idx) / m_livox.m_pts_info_vec.size();
                     piece_wise_end[i] = ((float)m_livox.find_pt_info(laserCloudScans[end_scans].points[end_idx])->idx) / m_livox.m_pts_info_vec.size();
 
                     if (piece_wise_start[i] > piece_wise_end[i])
                         piece_wise_end[i] = piece_wise_start[i] + 0.3;
                 }
 
+                // 获得livox_corners（角点）, livox_surface（平面）, livox_full（好点）特征点
                 for (int i = 0; i < piece_wise; i++)
                 {
                     pcl::PointCloud<PointType>::Ptr livox_corners(new pcl::PointCloud<PointType>()),
@@ -356,13 +361,14 @@ public:
                         livox_full(new pcl::PointCloud<PointType>());
                     pcl::PointCloud<ColorType>::Ptr livox_full_color(new pcl::PointCloud<ColorType>());
                     m_livox.get_features(*livox_corners, *livox_surface, *livox_full, *livox_full_color, piece_wise_start[i], piece_wise_end[i]);
-                    m_map_pointcloud_corner_vec_vec[current_lidar_index][i] = *livox_corners;  // NOTE list of LiDARs->list of Pieces->corners in the list of half-Petals
-                    m_map_pointcloud_surface_vec_vec[current_lidar_index][i] = *livox_surface; // list of LiDARs->list of Pieces->surfaces in the list of half-Petals
-                    m_map_pointcloud_full_vec_vec[current_lidar_index][i] = *livox_full;       // list of LiDARs->list of Pieces->all points in the list of half-Petals
+                    m_map_pointcloud_corner_vec_vec[current_lidar_index][i] = *livox_corners;
+                    m_map_pointcloud_surface_vec_vec[current_lidar_index][i] = *livox_surface;
+                    m_map_pointcloud_full_vec_vec[current_lidar_index][i] = *livox_full;
                     m_map_pointcloud_full_color_vec_vec[current_lidar_index][i] = *livox_full_color;
                 }
 
-                for (int i = 0; i < piece_wise; i++) // for every piece of the current scan
+                // 发布特征点
+                for (int i = 0; i < piece_wise; i++)
                 {
                     pcl::PointCloud<PointType>::Ptr livox_corners(new pcl::PointCloud<PointType>()),
                         livox_surface(new pcl::PointCloud<PointType>()),
@@ -375,21 +381,23 @@ public:
                             return;
                         }
 
-                        for (int ii = 0; ii < m_maximum_input_lidar_pointcloud; ii++) // m_maximum_input_lidar_pointcloud is 1, number of LiDARs using
+                        // 将所有雷达的特征点整合到一起
+                        for (int ii = 0; ii < m_maximum_input_lidar_pointcloud; ii++)
                         {
-                            *livox_full += m_map_pointcloud_full_vec_vec[ii][i]; // these lines suppose to gather all features from all LiDARs
+                            *livox_full += m_map_pointcloud_full_vec_vec[ii][i];
                             *livox_surface += m_map_pointcloud_surface_vec_vec[ii][i];
                             *livox_corners += m_map_pointcloud_corner_vec_vec[ii][i];
                             *livox_full_color += m_map_pointcloud_full_color_vec_vec[ii][i];
                         }
                     }
-                    else // no you saw the 1 up there, here is no else
+                    else // 只发布当前雷达的特征点
                     {
                         *livox_full = m_map_pointcloud_full_vec_vec[current_lidar_index][i];
                         *livox_surface = m_map_pointcloud_surface_vec_vec[current_lidar_index][i];
                         *livox_corners = m_map_pointcloud_corner_vec_vec[current_lidar_index][i];
                         *livox_full_color = m_map_pointcloud_full_color_vec_vec[current_lidar_index][i];
                     }
+
                     double curr_time = livox_full->points[0].intensity;
                     double first_receive_time = m_livox.m_first_receive_time;
                     ros::Time current_time = ros::Time().fromSec(curr_time + first_receive_time);
@@ -419,29 +427,31 @@ public:
                     temp_out_msg.header.stamp = current_time;
                     temp_out_msg.header.frame_id = "camera_init";
                     m_pub_pc_livox_corners.publish(temp_out_msg);
-                    if (m_odom_mode == 0) // odometry mode TODO odometry mode时，只使用一段livox激光点云
+                    if (m_odom_mode == 0) // odometry模式时，只使用一段livox激光点云
                     {
                         break;
                     }
                 }
             }
-            return; // 回调函数结束，后面的只有雷达为velodyne时才执行。
-        }           // end livox laser
-        else        // NOTE if using Velodyne, this part is modified from A-LOAM package, with some attributes renamed
+
+            return;
+        }
+        else // 如果是Velodyne雷达, 其参考A-LOAM
         {
             /********************************************
-             *    Feature extraction for velodyne lidar *
-            ********************************************/
+             *           velodyne 雷达的特征提取         *
+             ********************************************/
             std::vector<int> indices;
-            pcl::removeNaNFromPointCloud(laserCloudIn, laserCloudIn, indices);
-            removeClosedPointCloud(laserCloudIn, laserCloudIn, m_minimum_range); // TODO 好像这样并没有移除最近的points
+            pcl::removeNaNFromPointCloud(laserCloudIn, laserCloudIn, indices);   // 剔除nan的无效数据
+            removeClosedPointCloud(laserCloudIn, laserCloudIn, m_minimum_range); // 剔除最近的点，作者用的有问题，不起作用
 
-            // printf_line;
-            float startOri = -atan2(laserCloudIn.points[0].y, laserCloudIn.points[0].x);
+            // velodyne是顺时针增大, 而坐标轴中的yaw是逆时针增加, 所以这里要取负号
+            float startOri = -atan2(laserCloudIn.points[0].y, laserCloudIn.points[0].x); // 起始角
             float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y,
                                   laserCloudIn.points[cloudSize - 1].x) +
-                           2 * M_PI;
+                           2 * M_PI; // 终止角
 
+            // 正常情况下在这个范围内：pi < endOri - startOri < 3*pi，异常则修正
             if (endOri - startOri > 3 * M_PI)
             {
                 endOri -= 2 * M_PI;
@@ -455,18 +465,19 @@ public:
             int count = cloudSize;
             PointType point;
 
+            // 根据几何角度(竖直)，把激光点分配到线中
             for (size_t i = 0; i < cloudSize; i++)
             {
                 point.x = laserCloudIn.points[i].x;
                 point.y = laserCloudIn.points[i].y;
                 point.z = laserCloudIn.points[i].z;
 
-                float angle = atan(point.z / sqrt(point.x * point.x + point.y * point.y)) * 180 / M_PI;
-                int scanID = 0;
+                float angle = atan(point.z / sqrt(point.x * point.x + point.y * point.y)) * 180 / M_PI; // 俯仰角，上正下负
+                int scanID = 0;                                                                         // 由竖直角度映射而得
 
                 if (m_laser_scan_number == 16)
                 {
-                    scanID = int((angle + 15) / 2 + 0.5);
+                    scanID = int((angle + 15) / 2 + 0.5); // 计算激光点垂直角，加减0.5实现四舍五入
 
                     if (scanID > (m_laser_scan_number - 1) || scanID < 0)
                     {
@@ -485,7 +496,6 @@ public:
                         scanID = m_laser_scan_number / 2 + int((-8.83 - angle) * 2.0 + 0.5);
                     }
 
-                    // use [0 50]  > 50 remove outlies
                     if (angle > 2 || angle < -24.33 || scanID > 50 || scanID < 0)
                     {
                         count--;
@@ -498,9 +508,11 @@ public:
                     ROS_BREAK();
                 }
 
-                float ori = -atan2(point.y, point.x);
-                if (!halfPassed)
+                float ori = -atan2(point.y, point.x); // 计算该点的水平旋转角
+
+                if (!halfPassed) // 根据扫描线是否旋转过半选择与起始位置还是终止位置进行差值计算，从而进行补偿
                 {
+                    // -pi/2 < ori - startOri < 3*pi/2
                     if (ori < startOri - M_PI / 2)
                     {
                         ori += 2 * M_PI;
@@ -519,6 +531,7 @@ public:
                 {
                     ori += 2 * M_PI;
 
+                    // -3*pi/2 < ori - endOri < pi/2
                     if (ori < endOri - M_PI * 3 / 2)
                     {
                         ori += 2 * M_PI;
@@ -530,36 +543,34 @@ public:
                 }
 
                 float relTime = (ori - startOri) / (endOri - startOri);
-                point.intensity = scanID + m_para_scanPeriod * relTime;
+                point.intensity = scanID + m_para_scanPeriod * relTime; // 即一个整数+一个小数，整数部分是线号，小数部分是该点的相对时间
                 laserCloudScans[scanID].push_back(point);
             }
-        } // end velodyne laser
+        }
 
-        // finished conor/surface/all points
         pcl::PointCloud<PointType>::Ptr laserCloud(new pcl::PointCloud<PointType>());
         laserCloud->clear();
         cloudSize = 0;
-        for (int i = 0; i < m_laser_scan_number; i++) // NOTE indexing all half-a-petal into line of scans, with starting 5 and endding 5 points ignored. m_laser_scan_number = total number of petals
+        for (int i = 0; i < m_laser_scan_number; i++)
         {
-            scanStartInd[i] = laserCloud->size() + 5; // scanStartInd is a vector same length as m_laser_scan_number with 0 filled at this point
-            *laserCloud += laserCloudScans[i];        // #i half-a-petal
+            scanStartInd[i] = laserCloud->size() + 5;
+            *laserCloud += laserCloudScans[i];
             scanEndInd[i] = laserCloud->size() - 6;
-            cloudSize += laserCloudScans[i].size(); // recording total number of points in all petals
+            cloudSize += laserCloudScans[i].size();
         }
 
         for (size_t i = 5; i < cloudSize - 5; i++)
         {
-            // NOTE this section calculate the curvature of a point in scanning line(half-a-petal), noting that points already assigned into surface and conners in livox_feature_extractor
             float diffX = laserCloud->points[i - 5].x + laserCloud->points[i - 4].x + laserCloud->points[i - 3].x + laserCloud->points[i - 2].x + laserCloud->points[i - 1].x - 10 * laserCloud->points[i].x + laserCloud->points[i + 1].x + laserCloud->points[i + 2].x + laserCloud->points[i + 3].x + laserCloud->points[i + 4].x + laserCloud->points[i + 5].x;
             float diffY = laserCloud->points[i - 5].y + laserCloud->points[i - 4].y + laserCloud->points[i - 3].y + laserCloud->points[i - 2].y + laserCloud->points[i - 1].y - 10 * laserCloud->points[i].y + laserCloud->points[i + 1].y + laserCloud->points[i + 2].y + laserCloud->points[i + 3].y + laserCloud->points[i + 4].y + laserCloud->points[i + 5].y;
             float diffZ = laserCloud->points[i - 5].z + laserCloud->points[i - 4].z + laserCloud->points[i - 3].z + laserCloud->points[i - 2].z + laserCloud->points[i - 1].z - 10 * laserCloud->points[i].z + laserCloud->points[i + 1].z + laserCloud->points[i + 2].z + laserCloud->points[i + 3].z + laserCloud->points[i + 4].z + laserCloud->points[i + 5].z;
             float diff = diffX * diffX + diffY * diffY + diffZ * diffZ;
-            m_pc_curvature[i] = diff; // 每个点的曲率
-            m_pc_sort_idx[i] = i;     // 每个点在点云中的索引
-            m_pc_neighbor_picked[i] = 0;
-            m_pc_cloud_label[i] = 0;
-            if (1) // this section removing most points if it looks not interested
-            {      // the more 'if(1)' you see here, the more author suffered during his testing and tuning
+            m_pc_curvature[i] = diff;    // 每个点的曲率
+            m_pc_sort_idx[i] = i;        // 每个点在点云中的索引
+            m_pc_neighbor_picked[i] = 0; // 用于标记是否可作为特征点
+            m_pc_cloud_label[i] = 0;     // 用于标记特征点为边界线还是平面特征点
+            if (1)
+            {
                 if (1)
                 {
                     if (diff > 0.1) // if curvature >0.1
@@ -571,7 +582,7 @@ public:
                                             laserCloud->points[i + 1].y * laserCloud->points[i + 1].y +
                                             laserCloud->points[i + 1].z * laserCloud->points[i + 1].z);
 
-                        if (depth1 > depth2) // if the current point is futher away from lidar than the next point--- the scanning trend in going twards the center of LiDAR
+                        if (depth1 > depth2) // 当前点可能被遮挡
                         {
                             diffX = laserCloud->points[i + 1].x - laserCloud->points[i].x * depth2 / depth1;
                             diffY = laserCloud->points[i + 1].y - laserCloud->points[i].y * depth2 / depth1;
@@ -587,7 +598,7 @@ public:
                                 m_pc_neighbor_picked[i] = 1;
                             }
                         }
-                        else // if the next point is futher from lidar than the current point
+                        else // 后一点可能被遮挡
                         {
                             diffX = laserCloud->points[i + 1].x * depth1 / depth2 - laserCloud->points[i].x;
                             diffY = laserCloud->points[i + 1].y * depth1 / depth2 - laserCloud->points[i].y;
@@ -608,32 +619,31 @@ public:
 
                 if (1)
                 {
+                    // 平面/直线与激光近似平行的点不能要
                     float diffX2 = laserCloud->points[i].x - laserCloud->points[i - 1].x;
                     float diffY2 = laserCloud->points[i].y - laserCloud->points[i - 1].y;
                     float diffZ2 = laserCloud->points[i].z - laserCloud->points[i - 1].z;
                     float diff2 = diffX2 * diffX2 + diffY2 * diffY2 + diffZ2 * diffZ2;
-
-                    float dis = laserCloud->points[i].x * laserCloud->points[i].x + laserCloud->points[i].y * laserCloud->points[i].y + laserCloud->points[i].z * laserCloud->points[i].z;
+                    float dis = laserCloud->points[i].x * laserCloud->points[i].x + laserCloud->points[i].y * laserCloud->points[i].y + laserCloud->points[i].z * laserCloud->points[i].z; // 当前点深度平方和
 
                     if (diff > 0.0002 * dis && diff2 > 0.0002 * dis)
                     {
-                        m_pc_neighbor_picked[i] = 1;
+                        m_pc_neighbor_picked[i] = 1; // 当前点入射角与物理表面平行，当前点标记为不可作特征点
                     }
                 }
-            } // all these removed points from following processes
+            }
         }
 
 #if !IF_LIVOX_HANDLER_REMOVE
-        if (m_lidar_type != 0) // livox已经在前面返回
+        if (m_lidar_type != 0)
         {
             Livox_laser::Pt_infos *pt_info;
             for (unsigned int idx = 0; idx < cloudSize; idx++)
             {
                 pt_info = m_livox.find_pt_info(laserCloud->points[idx]);
-
-                if (pt_info->pt_type != Livox_laser::e_pt_normal) // if the point is not a normal state
+                if (pt_info->pt_type != Livox_laser::e_pt_normal)
                 {
-                    m_pc_neighbor_picked[idx] = 1; // then the point marked as picked---excluded from below processes
+                    m_pc_neighbor_picked[idx] = 1;
                 }
             }
         }
@@ -642,28 +652,28 @@ public:
         pcl::PointCloud<PointType> cornerPointsSharp;
         pcl::PointCloud<PointType> cornerPointsLessSharp;
         pcl::PointCloud<PointType> surfPointsFlat;
-        pcl::PointCloud<PointType> surfPointsLessFlat; // this one is not used in the code, all the points not selected or removed by the process are consider as lesslflat
+        pcl::PointCloud<PointType> surfPointsLessFlat;
         float sharp_point_threshold = 0.05;
 
-        //extract corners points and surface points
-        for (int i = 0; i < m_laser_scan_number; i++) // total size of the half-a-petal
+        // 提取角点和平面面点
+        for (int i = 0; i < m_laser_scan_number; i++)
         {
             pcl::PointCloud<PointType>::Ptr surfPointsLessFlatScan(new pcl::PointCloud<PointType>);
-            // To ensure the distribution of features point, spilt each scan into 6 parts equally according to their curvature.
+            // 为了确保特征点的分布，根据曲率将每个scan分为6段
             for (int j = 0; j < 6; j++)
             {
-                // scanStartInd: incermental index of starting point of a half-a-petal inside a scan
-                //Starting of each sub-scan.
+                // 各段起始位置
                 int sp = (scanStartInd[i] * (6 - j) + scanEndInd[i] * j) / 6;
-                //Ending of each sub-scan.
+                // 各段终止位置
                 int ep = (scanStartInd[i] * (5 - j) + scanEndInd[i] * (j + 1)) / 6 - 1;
 
-                //sort curvature
+                // 按曲率从小到大冒泡排序
                 for (int k = sp + 1; k <= ep; k++)
                 {
                     for (int l = k; l >= sp + 1; l--)
                     {
-                        if (m_pc_curvature[m_pc_sort_idx[l]] < m_pc_curvature[m_pc_sort_idx[l - 1]]) // NOTE bubble sorting big->small curvature
+                        // 如果后面曲率点大于前面，则交换
+                        if (m_pc_curvature[m_pc_sort_idx[l]] < m_pc_curvature[m_pc_sort_idx[l - 1]])
                         {
                             int temp = m_pc_sort_idx[l - 1];
                             m_pc_sort_idx[l - 1] = m_pc_sort_idx[l];
@@ -672,26 +682,25 @@ public:
                     }
                 }
 
-                // select the most sharp and flat point
+                // 选取角点，从每一段最大曲率（每一段末尾）处往前判断，用于确定边界线特征点
                 int largestPickedNum = 0;
                 for (int k = ep; k >= sp; k--)
                 {
-                    int ind = m_pc_sort_idx[k]; // The index of biggest curvature.
+                    int ind = m_pc_sort_idx[k]; // 排序后的点在点云中的索引
 
-                    if (m_pc_neighbor_picked[ind] == 0 && // if the point is not been picked yet
+                    if (m_pc_neighbor_picked[ind] == 0 &&
                         m_pc_curvature[ind] > sharp_point_threshold * 10)
                     {
-
                         largestPickedNum++;
                         if (largestPickedNum <= 20)
                         {
-                            m_pc_cloud_label[ind] = 2; // 2 -> the label sharpest points.
+                            m_pc_cloud_label[ind] = 2; // 标记为曲率很大的点
                             cornerPointsSharp.push_back(laserCloud->points[ind]);
                             cornerPointsLessSharp.push_back(laserCloud->points[ind]);
                         }
                         else if (largestPickedNum <= 200)
                         {
-                            m_pc_cloud_label[ind] = 1; // 1 -> the label of less sharpest points.
+                            m_pc_cloud_label[ind] = 1; // 标记为曲率比较大的点
                             cornerPointsLessSharp.push_back(laserCloud->points[ind]);
                         }
                         else
@@ -699,24 +708,25 @@ public:
                             break;
                         }
 
-                        m_pc_neighbor_picked[ind] = 1;
+                        m_pc_neighbor_picked[ind] = 1; // 该点被选为特征点后，标记为不可用
 
                         float times = 100;
-                        // delete 5 neighbor of sharpest points. keep the spareness of the cloud
+                        // 对ind点周围的点是否能作为特征点进行判断，除非距离大于阈值，否则前后各5各点不能作为特征点
                         for (int l = 1; l <= 5 * times; l++)
-                        {
+                        { // 后500个点
                             float diffX = laserCloud->points[ind + l].x - laserCloud->points[ind + l - 1].x;
                             float diffY = laserCloud->points[ind + l].y - laserCloud->points[ind + l - 1].y;
                             float diffZ = laserCloud->points[ind + l].z - laserCloud->points[ind + l - 1].z;
-                            if (diffX * diffX + diffY * diffY + diffZ * diffZ > 0.05)
+                            if (diffX * diffX + diffY * diffY + diffZ * diffZ > 0.05) // 相邻两点距离大于阈值，则不用标记
                             {
                                 break;
                             }
 
-                            m_pc_neighbor_picked[ind + l] = 1;
+                            m_pc_neighbor_picked[ind + l] = 1; // 否则标记为不可用特征点
                         }
+						
                         for (int l = -1; l >= -5 * times; l--)
-                        {
+                        { // 前500个点
                             float diffX = laserCloud->points[ind + l].x - laserCloud->points[ind + l + 1].x;
                             float diffY = laserCloud->points[ind + l].y - laserCloud->points[ind + l + 1].y;
                             float diffZ = laserCloud->points[ind + l].z - laserCloud->points[ind + l + 1].z;
@@ -730,6 +740,7 @@ public:
                     }
                 }
 
+                // 选取平面点，从每一段曲率最小（前端）开始查找，用于确定平面点
                 int smallestPickedNum = 0;
                 for (int k = sp; k <= ep; k++)
                 {
@@ -738,18 +749,17 @@ public:
                     if (m_pc_neighbor_picked[ind] == 0 &&
                         m_pc_curvature[ind] < sharp_point_threshold)
                     {
-
-                        m_pc_cloud_label[ind] = -1; // -1 the lable of flat points
+                        m_pc_cloud_label[ind] = -1; // 标记为曲率很小的点
                         surfPointsFlat.push_back(laserCloud->points[ind]);
 
                         smallestPickedNum++;
                         if (smallestPickedNum >= 5)
-                        { // 0 the label of less flat points.
+                        { // 剩下的Label==0，就都是曲率比较小的
                             break;
                         }
 
                         m_pc_neighbor_picked[ind] = 1;
-                        for (int l = 1; l <= 5; l++) // keep the spareness of the cloud
+                        for (int l = 1; l <= 5; l++) // 对ind点周围的点是否能作为特征点进行判断
                         {
                             float diffX = laserCloud->points[ind + l].x - laserCloud->points[ind + l - 1].x;
                             float diffY = laserCloud->points[ind + l].y - laserCloud->points[ind + l - 1].y;
@@ -761,6 +771,7 @@ public:
 
                             m_pc_neighbor_picked[ind + l] = 1;
                         }
+
                         for (int l = -1; l >= -5; l--)
                         {
                             float diffX = laserCloud->points[ind + l].x - laserCloud->points[ind + l + 1].x;
@@ -776,7 +787,7 @@ public:
                     }
                 }
 
-                // The ublabeled point is the less flat points
+                // 没被标记过的点和前述标记的平面点，作为LessFlat平面点
                 for (int k = sp; k <= ep; k++)
                 {
                     if (m_pc_cloud_label[k] <= 0)
@@ -784,18 +795,19 @@ public:
                         surfPointsLessFlatScan->push_back(laserCloud->points[k]);
                     }
                 }
-            } // end 6 sub lasers of each line
+            } // 一个六等分段处理完毕
 
-            // voxel filter for less sharp points.
+            // 由于less flat点最多，对每个分段less flat的点进行降采样，简化了点的数量，又保证了整体点云的基本形状
             pcl::PointCloud<PointType> surfPointsLessFlatScanDS;
 
             m_voxel_filter_for_surface.setInputCloud(surfPointsLessFlatScan);
             m_voxel_filter_for_surface.filter(surfPointsLessFlatScanDS);
 
             surfPointsLessFlat += surfPointsLessFlatScanDS;
-        } // end all lines
+        } // 一个scan处理完毕
 
         // pub each scam
+        // 发布每个scan
         if (m_if_pub_each_line)
         {
             for (int i = 0; i < m_laser_scan_number; i++)
@@ -845,6 +857,7 @@ public:
         {
             screen_out << "Set livox lidar minimum sigama =  " << m_livox.m_livox_min_sigma << std::endl;
         }
+        
         screen_out << "~~~~~ End ~~~~~" << endl;
     }
 };

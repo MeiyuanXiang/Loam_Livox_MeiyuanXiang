@@ -161,7 +161,7 @@ public:
     float m_time_internal_pts = 1.0e-5; // 10us = 1e-5
     float m_cx = 0;
     float m_cy = 0;
-    int m_if_save_pcd_file = 0;
+    int m_if_save_pcd_file = 0; // 是否保存从ROS中得到的原始点云数据
     int m_input_points_size;
     double m_first_receive_time = -1;
     double m_current_time;
@@ -193,6 +193,7 @@ public:
     int m_img_width = 800;
     int m_img_heigh = 800;
     ADD_SCREEN_PRINTF_OUT_METHOD;
+
     ~Livox_laser() {}
 
     Livox_laser()
@@ -237,6 +238,7 @@ public:
             printf("Error!!!!\r\n");
             assert(m_map_pt_idx_it != m_map_pt_idx.end()); // else, there must be something error happened before.
         }
+
         return m_map_pt_idx_it->second;
     }
 
@@ -246,6 +248,7 @@ public:
         ss << str;
         double res;
         ss >> res;
+
         return res;
     }
 
@@ -315,10 +318,11 @@ public:
 
             if ((m_pts_info_vec[i].pt_type & pt_critical_rm_mask) == 0)
             {
-                if (m_pts_info_vec[i].pt_label & e_label_corner) // NOTE if labeled as corner
+                if (m_pts_info_vec[i].pt_label & e_label_corner) // 角点
                 {
                     if (m_pts_info_vec[i].pt_type != e_pt_normal)
                         continue;
+
                     if (m_pts_info_vec[i].depth_sq2 < std::pow(30, 2))
                     {
                         pc_corners.points[corner_num] = m_raw_pts_vec[i];
@@ -326,7 +330,8 @@ public:
                         corner_num++;
                     }
                 }
-                if (m_pts_info_vec[i].pt_label & e_label_surface)
+
+                if (m_pts_info_vec[i].pt_label & e_label_surface) // 平面点
                 {
                     if (m_pts_info_vec[i].depth_sq2 < std::pow(1000, 2))
                     {
@@ -371,6 +376,7 @@ public:
             pc_full_res.points[full_num].intensity = m_pts_info_vec[i].time_stamp;
             full_num++;
         }
+
         cv::imwrite("/home/zjucvg/out1.png", unImg);
 
         pc_corners.resize(corner_num);
@@ -409,6 +415,7 @@ public:
         default:
             pt.intensity = ((float)pt_info->idx + 1) / (float)m_input_points_size;
         }
+
         return;
     }
 
@@ -417,7 +424,6 @@ public:
     {
         cv::Mat res_img = img.clone();
         unsigned int pt_size = pt_list_eigen.size();
-
         for (unsigned int idx = 0; idx < pt_size; idx++)
         {
             draw_pt(res_img, pt_list_eigen[idx], color, radius);
@@ -445,7 +451,8 @@ public:
 
     void eval_point(Pt_infos *pt_info)
     {
-        if (pt_info->depth_sq2 < m_livox_min_allow_dis * m_livox_min_allow_dis) // to close
+        // 深度值特别小的点
+        if (pt_info->depth_sq2 < m_livox_min_allow_dis * m_livox_min_allow_dis)
         {
             add_mask_of_point(pt_info, e_pt_too_near);
         }
@@ -457,53 +464,55 @@ public:
         }
     }
 
-    // compute curvature and view angle
+    // 计算曲率和视角
     void compute_features()
     {
-        unsigned int pts_size = m_raw_pts_vec.size(); // same as number of points
-        size_t curvature_ssd_size = 2;                // # of neighbor numbers taking into account
-        int critical_rm_point = e_pt_000 | e_pt_nan;  // bitwise OR --empty | inf
+        unsigned int pts_size = m_raw_pts_vec.size();
+        size_t curvature_ssd_size = 2;               // 邻接数
+        int critical_rm_point = e_pt_000 | e_pt_nan; // 按位或运算 --empty | inf
         float neighbor_accumulate_xyz[3] = {0.0, 0.0, 0.0};
 
         for (size_t idx = curvature_ssd_size; idx < pts_size - curvature_ssd_size; idx++)
         {
-            if (m_pts_info_vec[idx].pt_type & critical_rm_point) // bitwise overlap-- if the point type is empty | inf
+            if (m_pts_info_vec[idx].pt_type & critical_rm_point) // 点是否为无效点（empty | inf）
             {
                 continue;
             }
 
-            /*********** Compute curvate ************/
+            /*********** 计算曲率 ************/
             neighbor_accumulate_xyz[0] = 0.0;
             neighbor_accumulate_xyz[1] = 0.0;
             neighbor_accumulate_xyz[2] = 0.0;
 
             for (size_t i = 1; i <= curvature_ssd_size; i++)
             {
-                if ((m_pts_info_vec[idx + i].pt_type & e_pt_000) || (m_pts_info_vec[idx - i].pt_type & e_pt_000)) // if a left or right neighbors is empty
+                if ((m_pts_info_vec[idx + i].pt_type & e_pt_000) || (m_pts_info_vec[idx - i].pt_type & e_pt_000)) // 如果左或右邻近点为空
                 {
                     if (i == 1)
                     {
-                        m_pts_info_vec[idx].pt_label |= e_label_near_zero; // if its first neighbor,then the point idx is near_zero
+                        m_pts_info_vec[idx].pt_label |= e_label_near_zero;
                     }
                     else
                     {
-                        m_pts_info_vec[idx].pt_label = e_label_invalid; // otherwise invalid
+                        m_pts_info_vec[idx].pt_label = e_label_invalid;
                     }
+
                     break;
                 }
-                else if ((m_pts_info_vec[idx + i].pt_type & e_pt_nan) || (m_pts_info_vec[idx - i].pt_type & e_pt_nan)) // if a left or right neighbors is inf
+                else if ((m_pts_info_vec[idx + i].pt_type & e_pt_nan) || (m_pts_info_vec[idx - i].pt_type & e_pt_nan)) // 如果左或右邻近点为空 inf
                 {
                     if (i == 1)
                     {
-                        m_pts_info_vec[idx].pt_label |= e_label_near_nan; // if its first neighbor,then the point idx is near_nan
+                        m_pts_info_vec[idx].pt_label |= e_label_near_nan;
                     }
                     else
                     {
-                        m_pts_info_vec[idx].pt_label = e_label_invalid; // otherwise invalid
+                        m_pts_info_vec[idx].pt_label = e_label_invalid;
                     }
+
                     break;
                 }
-                else // if no next curvature_ssd_size neighbors are either inf or empty (too far or too close)
+                else // 太远或太近
                 {
                     neighbor_accumulate_xyz[0] += m_raw_pts_vec[idx + i].x + m_raw_pts_vec[idx - i].x;
                     neighbor_accumulate_xyz[1] += m_raw_pts_vec[idx + i].y + m_raw_pts_vec[idx - i].y;
@@ -516,36 +525,35 @@ public:
                 continue;
             }
 
-            neighbor_accumulate_xyz[0] -= curvature_ssd_size * 2 * m_raw_pts_vec[idx].x; // in this case curvature_ssd_size =2, sum of four neighbour points - 2*2*current point
+            neighbor_accumulate_xyz[0] -= curvature_ssd_size * 2 * m_raw_pts_vec[idx].x;
             neighbor_accumulate_xyz[1] -= curvature_ssd_size * 2 * m_raw_pts_vec[idx].y;
             neighbor_accumulate_xyz[2] -= curvature_ssd_size * 2 * m_raw_pts_vec[idx].z;
             m_pts_info_vec[idx].curvature = neighbor_accumulate_xyz[0] * neighbor_accumulate_xyz[0] + neighbor_accumulate_xyz[1] * neighbor_accumulate_xyz[1] +
-                                            neighbor_accumulate_xyz[2] * neighbor_accumulate_xyz[2]; // sum sqr2 of curvature on individual axis
+                                            neighbor_accumulate_xyz[2] * neighbor_accumulate_xyz[2];
 
-            /*********** Compute plane angle ************/
-            Eigen::Matrix<float, 3, 1> vec_a(m_raw_pts_vec[idx].x, m_raw_pts_vec[idx].y, m_raw_pts_vec[idx].z); // current point as a vector
+            /*********** 计算平面角 ************/
+            Eigen::Matrix<float, 3, 1> vec_a(m_raw_pts_vec[idx].x, m_raw_pts_vec[idx].y, m_raw_pts_vec[idx].z);
             Eigen::Matrix<float, 3, 1> vec_b(m_raw_pts_vec[idx + curvature_ssd_size].x - m_raw_pts_vec[idx - curvature_ssd_size].x,
                                              m_raw_pts_vec[idx + curvature_ssd_size].y - m_raw_pts_vec[idx - curvature_ssd_size].y,
-                                             m_raw_pts_vec[idx + curvature_ssd_size].z - m_raw_pts_vec[idx - curvature_ssd_size].z); // the outline vector from idx-2 to idx+2, here consider as the scanning surface
-            m_pts_info_vec[idx].view_angle = Eigen_math::vector_angle(vec_a, vec_b, 1) * 57.3;                                       // the angle between scan surface and the current point vector, converted to degree by *57.3
+                                             m_raw_pts_vec[idx + curvature_ssd_size].z - m_raw_pts_vec[idx - curvature_ssd_size].z);
+            m_pts_info_vec[idx].view_angle = Eigen_math::vector_angle(vec_a, vec_b, 1) * 57.3; // 扫描平面和当前点直接的夹角，乘57.3转换为角度
 
-            if (m_pts_info_vec[idx].view_angle > minimum_view_angle) // if more than 10 degree
+            if (m_pts_info_vec[idx].view_angle > minimum_view_angle) // 大于10°
             {
-                if (m_pts_info_vec[idx].curvature < thr_surface_curvature) // curvature smaller than 0.01, consideras a plane point
+                if (m_pts_info_vec[idx].curvature < thr_surface_curvature) // 曲率小于0.01, 认为时平面点
                 {
-                    m_pts_info_vec[idx].pt_label |= e_label_surface; // marked as surface point
+                    m_pts_info_vec[idx].pt_label |= e_label_surface; // 标记为平面点
                 }
 
-                float sq2_diff = 0.1; // suddenly from nowhere, he decided to have the sqr2 factor as 0.1
-
-                if (m_pts_info_vec[idx].curvature > thr_corner_curvature) // curvature bigger than 0.05, consider as an edge point
+                float sq2_diff = 0.1;
+                if (m_pts_info_vec[idx].curvature > thr_corner_curvature) // 曲率大于0.05，认为时边界点
                 {
                     if (m_pts_info_vec[idx].depth_sq2 <= m_pts_info_vec[idx - curvature_ssd_size].depth_sq2 &&
-                        m_pts_info_vec[idx].depth_sq2 <= m_pts_info_vec[idx + curvature_ssd_size].depth_sq2) // if the current point is further from LiDAR than its -2 amd +2 neighbour
+                        m_pts_info_vec[idx].depth_sq2 <= m_pts_info_vec[idx + curvature_ssd_size].depth_sq2)
                     {
                         if (abs(m_pts_info_vec[idx].depth_sq2 - m_pts_info_vec[idx - curvature_ssd_size].depth_sq2) < sq2_diff * m_pts_info_vec[idx].depth_sq2 ||
-                            abs(m_pts_info_vec[idx].depth_sq2 - m_pts_info_vec[idx + curvature_ssd_size].depth_sq2) < sq2_diff * m_pts_info_vec[idx].depth_sq2) // if the current point's difference with its -2 and +2 neighbour is withit 1/10 of its length
-                            m_pts_info_vec[idx].pt_label |= e_label_corner;                                                                                     // then yes, it is an edge point
+                            abs(m_pts_info_vec[idx].depth_sq2 - m_pts_info_vec[idx + curvature_ssd_size].depth_sq2) < sq2_diff * m_pts_info_vec[idx].depth_sq2)
+                            m_pts_info_vec[idx].pt_label |= e_label_corner;
                     }
                 }
             }
@@ -572,9 +580,9 @@ public:
         for (unsigned int idx = 0; idx < pts_size; idx++)
         {
             m_raw_pts_vec[idx] = laserCloudIn.points[idx];
-            Pt_infos *pt_info = &m_pts_info_vec[idx];                               // attribute of a livox point
+            Pt_infos *pt_info = &m_pts_info_vec[idx];                               // livox点属性
             m_map_pt_idx.insert(std::make_pair(laserCloudIn.points[idx], pt_info)); // std::make_pair->std::map< PointType, Pt_infos *, Pt_compare >
-            pt_info->raw_intensity = laserCloudIn.points[idx].intensity;            // livox use intensity as the 4th dimension info
+            pt_info->raw_intensity = laserCloudIn.points[idx].intensity;
             pt_info->idx = idx;
             pt_info->time_stamp = m_current_time + ((float)idx) * m_time_internal_pts;
             m_last_maximum_time_stamp = pt_info->time_stamp;
@@ -586,7 +594,7 @@ public:
                 !std::isfinite(laserCloudIn.points[idx].y) ||
                 !std::isfinite(laserCloudIn.points[idx].z))
             {
-                add_mask_of_point(pt_info, e_pt_nan); // NOTE if any of xyz of a point is inf, then the point is inf
+                add_mask_of_point(pt_info, e_pt_nan); // 点值为inf
                 continue;
             }
 
@@ -594,53 +602,54 @@ public:
             {
                 if (idx == 0)
                 {
-                    // NOTE: handle the first point of each livox callback.
+                    // 第一个点
                     screen_out << "First point should be normal!!!" << std::endl;
 
-                    pt_info->pt_2d_img << 0.01, 0.01; // init 2d prijection of the first point-- first point is the center of the flower shape(0.1,0.1)
+                    pt_info->pt_2d_img << 0.01, 0.01; // 第一个点的二维投影坐标
                     pt_info->polar_dis_sq2 = 0.0001;  // x * x + y * y + z * z init to 0.0001
                     add_mask_of_point(pt_info, e_pt_000);
-                    //return 0;
                 }
                 else
                 {
                     pt_info->pt_2d_img = m_pts_info_vec[idx - 1].pt_2d_img;
                     pt_info->polar_dis_sq2 = m_pts_info_vec[idx - 1].polar_dis_sq2;
                     add_mask_of_point(pt_info, e_pt_000);
-                    continue; // NOTE pass when x=0 and idx is not 0
+                    continue;
                 }
             }
 
-            // ANCHOR inseret point from m_pts_info_vec to m_map_pt_idx
             m_map_pt_idx.insert(std::make_pair(laserCloudIn.points[idx], pt_info));
 
             pt_info->depth_sq2 = depth2_xyz(laserCloudIn.points[idx].x, laserCloudIn.points[idx].y, laserCloudIn.points[idx].z); // x * x + y * y + z * z
 
-            pt_info->pt_2d_img << laserCloudIn.points[idx].y / laserCloudIn.points[idx].x, laserCloudIn.points[idx].z / laserCloudIn.points[idx].x; // TODO 3D->2D project to X==1 plane
-            pt_info->polar_dis_sq2 = dis2_xy(pt_info->pt_2d_img(0), pt_info->pt_2d_img(1));                                                         // project points to Y-Z 2D, a flower view of the scan, for the purpose of process scan partten
+            pt_info->pt_2d_img << laserCloudIn.points[idx].y / laserCloudIn.points[idx].x, laserCloudIn.points[idx].z / laserCloudIn.points[idx].x; // X==1平面上，3D投影到2D
+            pt_info->polar_dis_sq2 = dis2_xy(pt_info->pt_2d_img(0), pt_info->pt_2d_img(1));                                                         // 将点投影到Y-Z二维平面上
 
-            eval_point(pt_info); // NOTE evaluate each point 1:{if dis < livox min allowed dis -> point = inf} 2:{assign point intensity using eq.3 on paper} 3:{if intensity<min_livox_intensity, point=lowintensityPoint}
-
-            if (pt_info->polar_dis_sq2 > m_max_edge_polar_pos) // NOTE if is point on the edge of the FOV, edge define as std::pow( tan( max_fov / 57.3 ) * 1, 2 )
+            // 评估点坐标
+            eval_point(pt_info);
+            // 点位于视场角边界上
+            if (pt_info->polar_dis_sq2 > m_max_edge_polar_pos) // m_max_edge_polar_pos = std::pow( tan( max_fov / 57.3 ) * 1, 2 )
             {
                 add_mask_of_point(pt_info, e_pt_circle_edge, 2); // TODO -2to+2. 5 points as edge point?? 一人越线，全家受累??
             }
 
-            // Split scans
-            if (idx >= 1) // if not the first point of a scan
+            // 分割scans
+            if (idx >= 1) // 不是扫描线的第一个点
             {
-                float dis_incre = pt_info->polar_dis_sq2 - m_pts_info_vec[idx - 1].polar_dis_sq2; // trend of the surface,if its going towards the center of the flower shape or the opposite way
-                if (dis_incre > 0)                                                                // far away from zero
+                // 判断点是靠近花瓣中心，还是远离花瓣中心
+                float dis_incre = pt_info->polar_dis_sq2 - m_pts_info_vec[idx - 1].polar_dis_sq2;
+
+                if (dis_incre > 0) // 远离
                 {
                     pt_info->polar_direction = 1;
                 }
 
-                if (dis_incre < 0) // move toward zero
+                if (dis_incre < 0) // 靠近
                 {
                     pt_info->polar_direction = -1;
                 }
 
-                if (pt_info->polar_direction == -1 && m_pts_info_vec[idx - 1].polar_direction == 1) // detecting the turnning point of a flower shape scan
+                if (pt_info->polar_direction == -1 && m_pts_info_vec[idx - 1].polar_direction == 1) // 检测花瓣上的转折点
                 {
                     if (edge_idx.size() == 0 || (idx - split_idx[split_idx.size() - 1]) > 50) // TODO if no edge size lodged or 50 points after the last split, why 50?
                     {
@@ -655,7 +664,6 @@ public:
                     if (zero_idx.size() == 0 || (idx - split_idx[split_idx.size() - 1]) > 50)
                     {
                         split_idx.push_back(idx); //# of petal of scan
-
                         zero_idx.push_back(idx); //center side points
                         continue;
                     }
@@ -663,7 +671,6 @@ public:
             }
         }
 
-        // NOTE Done split all point into petals
         split_idx.push_back(pts_size - 1); // last slot of split_idx record # of points in last callback
 
         int val_index = 0;
@@ -671,7 +678,7 @@ public:
         float scan_angle = 0;
         int internal_size = 0;
 
-        if (split_idx.size() < 6) // minimum 3 petal of scan.
+        if (split_idx.size() < 6)
             return 0;
 
         for (int idx = 0; idx < (int)pts_size; idx++)
@@ -701,6 +708,7 @@ public:
                     }
                 }
             }
+
             m_pts_info_vec[idx].polar_angle = scan_angle; // keep in mind the above, the if conditions skip points, therefore most scan_angle will be 0
             scan_id_index[idx] = scan_angle;              // only scan_angle of the starting point of a petal recorded
         }
@@ -708,8 +716,6 @@ public:
         return split_idx.size() - 1;
     }
 
-    // will be delete...
-    //    template<typename T>
     void reorder_laser_cloud_scan(std::vector<pcl::PointCloud<pcl::PointXYZI>> &in_laserCloudScans, std::vector<std::vector<int>> &pts_mask)
     {
         unsigned int min_pts_per_scan = 0;
@@ -751,10 +757,11 @@ public:
         in_laserCloudScans = res_laser_cloud;
         pts_mask = res_pts_mask;
         screen_out << "Return size = " << pts_mask.size() << "  " << in_laserCloudScans.size() << endl;
+
         return;
     }
 
-    // Split whole point cloud into scans.
+    // 分割整个点云
     template <typename T>
     void split_laser_scan(const int clutter_size, const pcl::PointCloud<T> &laserCloudIn,
                           const std::vector<float> &scan_id_index,
@@ -763,17 +770,16 @@ public:
         std::vector<std::vector<int>> pts_mask;
         laserCloudScans.resize(clutter_size);
         pts_mask.resize(clutter_size);
+
         PointType point;
         int scan_idx = 0;
-
-        for (unsigned int i = 0; i < laserCloudIn.size(); i++) // for every point in the liDAR callback
+        for (unsigned int i = 0; i < laserCloudIn.size(); i++)
         {
             point = laserCloudIn.points[i];
-
-            if (i > 0 && ((scan_id_index[i]) != (scan_id_index[i - 1]))) // if not first point and scan angle not same with last point, related to above function, only starting point of a petal has scan_angle, teh rest is 0
+            if (i > 0 && ((scan_id_index[i]) != (scan_id_index[i - 1])))
             {
-                scan_idx = scan_idx + 1;          // NOTE next point cloud, nex half of a petal
-                pts_mask[scan_idx].reserve(5000); // TODO resize vector to 5000, How many points in each scan is NOT listed on Livox or DJI webpage, need to investigate
+                scan_idx = scan_idx + 1;
+                pts_mask[scan_idx].reserve(5000); // 不同型号Livox扫描仪的点数不一样
             }
 
             laserCloudScans[scan_idx].push_back(point);
@@ -793,16 +799,16 @@ public:
             pcl::PointCloud<PointType> laser_clour_per_scan;
             for (unsigned int idx = 0; idx < laserCloudScans[i].size(); idx++)
             {
-                if ((pts_mask[i][idx] & remove_point_pt_type) == 0) // if the point is neither of remove_point_pt_type
+                if ((pts_mask[i][idx] & remove_point_pt_type) == 0)
                 {
                     if (laserCloudScans[i].points[idx].x == 0)
                     {
-                        screen_printf("Error!!! Mask = %d\r\n", pts_mask[i][idx]); // should not see x=0 at this point of the process
+                        screen_printf("Error!!! Mask = %d\r\n", pts_mask[i][idx]);
                         assert(laserCloudScans[i].points[idx].x != 0);
                         continue;
                     }
                     auto temp_pt = laserCloudScans[i].points[idx];
-                    set_intensity(temp_pt, default_return_intensity_type); // color setting for rviz, not the intensity mentioned in the paper
+                    set_intensity(temp_pt, default_return_intensity_type); // rviz中显示用到的颜色
                     laser_clour_per_scan.points.push_back(temp_pt);
                     scan_avail_num++;
                 }
@@ -817,12 +823,12 @@ public:
         laserCloudScans = res_laser_cloud_scan;
     }
 
-    // NOTE Livox point feature extract
+    // 提取Livox特征点
     template <typename T>
     std::vector<pcl::PointCloud<pcl::PointXYZI>> extract_laser_features(pcl::PointCloud<T> &laserCloudIn, double time_stamp = -1)
     {
         assert(time_stamp >= 0.0);
-        if (time_stamp <= 0.0000001 || (time_stamp < m_last_maximum_time_stamp)) // old firmware, without timestamp
+        if (time_stamp <= 0.0000001 || (time_stamp < m_last_maximum_time_stamp))
         {
             m_current_time = m_last_maximum_time_stamp;
         }
@@ -830,6 +836,7 @@ public:
         {
             m_current_time = time_stamp - m_first_receive_time;
         }
+        
         if (m_first_receive_time <= 0)
         {
             m_first_receive_time = time_stamp;
@@ -851,15 +858,15 @@ public:
             pcl::io::savePCDFileASCII(ss.str(), laserCloudIn);
         }
 
-        int clutter_size = projection_scan_3d_2d(laserCloudIn, scan_id_index); // return number of petal of scan and split a scan into petals
-        compute_features();                                                    // classify conner and surface points
+        int clutter_size = projection_scan_3d_2d(laserCloudIn, scan_id_index); // 返回一个scan的花瓣数，并将一个scan的点云分成多个花瓣点云集合
+        compute_features();                                                    // 分类为边缘点和平面点
         if (clutter_size == 0)
         {
-            return laserCloudScans; // if not enough for 1 petal
+            return laserCloudScans; // 没有花瓣
         }
         else
         {
-            split_laser_scan(clutter_size, laserCloudIn, scan_id_index, laserCloudScans); // NOTE split laser petal into different color for RVIZ
+            split_laser_scan(clutter_size, laserCloudIn, scan_id_index, laserCloudScans); // 为了RVIZ显示，将点云分成不同的颜色
             return laserCloudScans;
         }
     }

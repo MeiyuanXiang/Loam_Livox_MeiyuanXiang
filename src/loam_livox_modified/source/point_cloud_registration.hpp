@@ -34,6 +34,7 @@ using namespace PCL_TOOLS;
 using namespace Common_tools;
 //class Laser_mapping;
 int g_export_full_count = 0;
+
 class Point_cloud_registration
 {
 public:
@@ -101,9 +102,8 @@ public:
     ceres::Solver::Summary m_final_opt_summary;
     int m_maximum_allow_residual_block = 1e5;
     Common_tools::Random_generator_float<float> m_rand_float;
-    ~Point_cloud_registration(){
 
-    };
+    ~Point_cloud_registration(){ };
 
     Point_cloud_registration()
     {
@@ -162,6 +162,7 @@ public:
         {
             dis_vec.insert(fabs(residuals[3 * i + 0]) + fabs(residuals[3 * i + 1]) + fabs(residuals[3 * i + 2]));
         }
+
         return *(std::next(dis_vec.begin(), (int)((ratio)*dis_vec.size())));
     }
 
@@ -260,6 +261,7 @@ public:
                     {
                         continue;
                     }
+
                     // 在local map 中找离pointSel最近的5个points, 距离由小到大
 
                     if (m_point_search_sq_dis[line_search_num - 1] < m_maximum_dis_line_for_match)
@@ -291,7 +293,6 @@ public:
                             Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> saes(covMat);
 
                             // note Eigen library sort eigenvalues in increasing order
-
                             if (saes.eigenvalues()[2] > 3 * saes.eigenvalues()[1])
                             {
                                 line_is_avail = true;
@@ -316,6 +317,7 @@ public:
                                 auto pt_2 = pcl_pt_to_eigend(laser_cloud_corner_from_map.points[m_point_search_Idx[1]]); // l point
                                 if ((pt_1 - pt_2).norm() < 0.0001)
                                     continue;
+
                                 if (m_if_motion_deblur) // 线性插值
                                 {
                                     cost_function = ceres_icp_point2line_mb<double>::Create(curr_point,
@@ -370,7 +372,7 @@ public:
                         {
                             for (int j = 0; j < plane_search_num; j++)
                             {
-                                Eigen::Vector3d tmp(laser_cloud_surf_from_map.points[m_point_search_Idx[j]].x, //TODO default: corner(wrong)
+                                Eigen::Vector3d tmp(laser_cloud_surf_from_map.points[m_point_search_Idx[j]].x,
                                                     laser_cloud_surf_from_map.points[m_point_search_Idx[j]].y,
                                                     laser_cloud_surf_from_map.points[m_point_search_Idx[j]].z);
                                 center = center + tmp;
@@ -430,7 +432,7 @@ public:
                                         m_t_w_last); //pointOri.intensity );
                                 }
 
-                                // 残差： 平面到点的向量，由垂足到点
+                                // 残差：平面到点的向量，由垂足到点
                                 block_id = problem.AddResidualBlock(cost_function, loss_function, m_para_buffer_incremental, m_para_buffer_incremental + 4);
                                 residual_block_ids.push_back(block_id);
                             }
@@ -465,6 +467,7 @@ public:
                             residual_block_ids_temp.push_back(residual_block_ids[i]);
                         }
                     }
+
                     residual_block_ids = residual_block_ids_temp;
                     delete probability_to_drop;
                 }
@@ -476,12 +479,10 @@ public:
                 for (size_t ii = 0; ii < 1; ii++)
                 {
                     options.linear_solver_type = slover_type;
-                    //options.max_num_iterations = m_para_cere_max_iterations;
                     options.max_num_iterations = m_para_cere_prerun_times; // 先让ceres迭代2次，根据结果的残差项大小，大约删除掉20%的outliers
                     options.minimizer_progress_to_stdout = false;
                     options.check_gradients = false; // TODO true时, 总是 Gradient error detected. Terminating solver
                     options.gradient_check_relative_precision = 1e-10;
-                    //options.function_tolerance = 1e-100; // default 1e-6
 
                     set_ceres_solver_bound(problem, m_para_buffer_incremental); // 设置参数 m_t_w_incre最小值，最大值[-2，2]
                     ceres::Solve(options, &problem, &summary);
@@ -492,16 +493,13 @@ public:
                     double total_cost = 0.0;
                     std::vector<double> residuals; // 残差是：点到直线的距离向量，点到面的距离向量
                     problem.Evaluate(eval_options, &total_cost, &residuals, nullptr, nullptr);
-                    //double avr_cost = total_cost / residual_block_ids.size();
 
                     double m_inliner_ratio_threshold = compute_inlier_residual_threshold(residuals, m_inlier_ratio); // 内点所占比例大致为80%
                     m_inlier_threshold = std::max(m_inliner_dis, m_inliner_ratio_threshold);                         // 计算位姿时, max(0.02,  ); 闭环匹配时: max(0.2, )
-                    //screen_out << "Inlier threshold is: " << m_inlier_final_threshold << endl;
                     for (unsigned int i = 0; i < residual_block_ids.size(); i++)
                     {
                         if ((fabs(residuals[3 * i + 0]) + fabs(residuals[3 * i + 1]) + fabs(residuals[3 * i + 2])) > m_inlier_threshold) // std::min( 1.0, 10 * avr_cost )
                         {
-                            //screen_out << "Remove outliers, drop id = " << (void *)residual_block_ids[ i ] <<endl;
                             problem.RemoveResidualBlock(residual_block_ids[i]);
                         }
                         else
@@ -509,6 +507,7 @@ public:
                             residual_block_ids_temp.push_back(residual_block_ids[i]);
                         }
                     }
+
                     residual_block_ids = residual_block_ids_temp;
                 }
 
@@ -552,6 +551,7 @@ public:
                 m_logger_common->printf("Corner  total num %d |  use %d | rate = %d \% \r\n", laser_corner_pt_num, corner_avail_num, (corner_avail_num)*100 / laser_corner_pt_num);
                 m_logger_common->printf("Surface total num %d |  use %d | rate = %d \% \r\n", laser_surface_pt_num, surf_avail_num, (surf_avail_num)*100 / laser_surface_pt_num);
             }
+            
             *(m_logger_timer->get_ostream()) << m_timer->toc_string("Pose optimization") << std::endl;
             if (g_export_full_count < 5)
             {
@@ -584,11 +584,14 @@ public:
                 {
                     m_para_buffer_RT[i] = m_para_buffer_RT_last[i]; // 其他地方没有使用这两个变量，没有用到
                 }
+
                 m_last_time_stamp = m_minimum_pt_time_stamp;
                 m_q_w_curr = m_q_w_last;
                 m_t_w_curr = m_t_w_last;
+
                 return 0;
             }
+
             m_final_opt_summary = summary;
         }
         else
@@ -616,6 +619,7 @@ public:
         {
             return 1;
         }
+        
         return find_out_incremental_transfrom(in_laser_cloud_corner_from_map, in_laser_cloud_surf_from_map, m_kdtree_corner_from_map, m_kdtree_surf_from_map, laserCloudCornerStack, laserCloudSurfStack);
     }
 
