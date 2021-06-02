@@ -18,7 +18,8 @@ Loam_Livox相关论文、代码中文注释以及代码改动
 
 # 数据
 链接：https://pan.baidu.com/s/1nMSJRuP8io8mEqLgACUT_w  
-提取码：sv9z
+提取码：sv9z  
+loop_hku_main.bag和loop_hku_zym.bag数据包中包含图像数据  
 
 # 运行
 1. Livox Mid-40、Livox Mid-70直连  
@@ -26,16 +27,16 @@ roslaunch loam_livox livox.launch
 roslaunch livox_ros_driver livox_lidar.launch  
 2. 普通场景数据  
 roslaunch loam_livox rosbag.launch  
-rosbag play YOUR_DOWNLOADED.bag  
+rosbag play CYT_02.bag  
 3. 大场景数据  
 roslaunch loam_livox rosbag_largescale.launch  
-rosbag play YOUR_DOWNLOADED.bag  
-4. Livox Mid-100数据  
+rosbag play HKUST_01.bag  
+4. Livox Mid-100数据（链接：https://pan.baidu.com/s/1hAxftuRWAz8oj8-P1an_IA 提取码：9gc9）  
 roslaunch loam_livox rosbag_mid100.launch  
 rosbag play mid100_example.bag  
 5. 简单回环检测  
-roslaunch loam_livox rosbag_loop_simple.launch  
-rosbag play YOUR_PATH/loop_simple.bag  
+roslaunch loam_livo loop_simple.launch  
+rosbag play loop_simple.bag  
 6. 回环检测  
 roslaunch loam_livox rosbag_loop.launch  
-rosbag play YOUR_DOWNLOADED.bag  
+rosbag play loop_hku_main.bag
