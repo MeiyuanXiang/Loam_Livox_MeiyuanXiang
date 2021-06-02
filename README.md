@@ -22,8 +22,8 @@ Loam_Livox相关论文、代码中文注释以及代码改动
 
 # 运行
 1. Livox Mid-40、Livox Mid-70直连
-roslaunch loam_livox livox.launch
-roslaunch livox_ros_driver livox_lidar.launch
+1.1 roslaunch loam_livox livox.launch
+1.2 roslaunch livox_ros_driver livox_lidar.launch
 2. 普通场景数据
 roslaunch loam_livox rosbag.launch
 rosbag play YOUR_DOWNLOADED.bag
